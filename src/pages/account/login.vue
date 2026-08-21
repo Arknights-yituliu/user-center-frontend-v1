@@ -250,30 +250,30 @@ async function toLogin() {
                 placeholder="请输入邮箱"
                 class="m-4"
                 @keyup.enter="toLogin"
-            >
-              <template v-slot:append>
-                <v-btn
-                    color="primary"
-                    variant="text"
-                    :loading="sendCodeLoading"
-                    :disabled="codeCountdown > 0"
-                    @click="sendVerificationCode"
-                >
-                  {{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '发送验证码' }}
-                </v-btn>
-              </template>
-            </v-text-field>
+            ></v-text-field>
 
             <div class="m-0-4">验证码</div>
-            <v-text-field
+            <!-- 6 位验证码分格输入，输完自动触发登录（不设 color，避免 OTP 格子背景被染成主色） -->
+            <v-otp-input
                 v-model="inputContent.verificationCode"
-                color="primary"
+                length="6"
+                type="number"
                 density="compact"
                 variant="outlined"
-                placeholder="请输入 6 位验证码"
                 class="m-4"
-                @keyup.enter="toLogin"
-            ></v-text-field>
+                @finish="toLogin"
+            ></v-otp-input>
+
+            <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
+            <div class="flex justify-center mt-1 mb-4">
+              <v-btn
+                  color="primary"
+                  variant="text"
+                  :loading="sendCodeLoading"
+                  :disabled="codeCountdown > 0"
+                  @click="sendVerificationCode"
+              >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '获取验证码' }}</v-btn>
+            </div>
           </v-tabs-window-item>
         </v-tabs-window>
 

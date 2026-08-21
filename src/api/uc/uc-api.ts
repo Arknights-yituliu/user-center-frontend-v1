@@ -146,6 +146,19 @@ export function resetPassword(account: string, code: string, newPassword: string
 }
 
 /**
+ * 修改个人资料（昵称/头像）（UC POST /user/profile/update，需登录）
+ * 昵称最长 20 字符、头像地址最长 512；仅传需要修改的字段
+ * @param data 修改参数 { nickname?, avatar? }
+ */
+export function updateProfile(data: { nickname?: string; avatar?: string }): Promise<UcResponse> {
+  return ucRequest({
+    method: 'POST',
+    url: '/user/profile/update',
+    data,
+  })
+}
+
+/**
  * 绑定邮箱（UC POST /user/email/bind，文档 3.6.1 节，需登录，仅无邮箱账号可绑）
  * @param email 新邮箱（全局唯一）
  * @param code 发到该邮箱的验证码（先调 sendEmailCode，usage=register）
@@ -159,14 +172,25 @@ export function bindEmail(email: string, code: string): Promise<UcResponse> {
 }
 
 /**
- * 换绑邮箱（UC POST /user/email/change，文档 3.6.2 节，需登录，验证旧邮箱与新邮箱）
- * @param oldEmail 当前绑定邮箱（须与账号一致）
- * @param oldCode 发到旧邮箱的验证码
+ * 发送换绑邮箱验证码（UC POST /user/email/send-change-code，需登录，无参数）
+ * 验证码由服务端发到当前绑定邮箱（前端只持有脱敏邮箱，无需也不能传邮箱）
+ * 绑定邮箱发码仍走 sendEmailCode（usage=register）
+ */
+export function sendChangeEmailCode(): Promise<UcResponse> {
+  return ucRequest({
+    method: 'POST',
+    url: '/user/email/send-change-code',
+  })
+}
+
+/**
+ * 换绑邮箱（UC POST /user/email/change，需登录，验证旧邮箱与新邮箱）
+ * 旧邮箱由服务端以当前绑定为准，前端无需（也不应）回传，只需旧邮箱验证码
+ * @param oldCode 发到旧邮箱（当前绑定邮箱）的验证码（先调 sendChangeEmailCode）
  * @param newEmail 新邮箱（全局唯一）
- * @param newCode 发到新邮箱的验证码
+ * @param newCode 发到新邮箱的验证码（先调 sendEmailCode，usage=register）
  */
 export function changeEmail(
-  oldEmail: string,
   oldCode: string,
   newEmail: string,
   newCode: string,
@@ -174,7 +198,7 @@ export function changeEmail(
   return ucRequest({
     method: 'POST',
     url: '/user/email/change',
-    data: { oldEmail, oldCode, newEmail, newCode },
+    data: { oldCode, newEmail, newCode },
   })
 }
 

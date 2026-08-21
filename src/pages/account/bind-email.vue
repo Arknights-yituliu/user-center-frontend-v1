@@ -7,6 +7,7 @@ import {
     getUcToken,
     getUserProfile,
     sendEmailCode,
+    sendChangeEmailCode,
     bindEmail,
     changeEmail,
 } from "../../api/uc/uc-api";
@@ -89,15 +90,17 @@ onMounted(async () => {
 })
 
 /**
- * 发送旧邮箱验证码（换绑模式，UC POST /auth/send-code usage=register，发到当前绑定邮箱）
+ * 发送旧邮箱验证码（换绑模式，UC POST /user/email/send-change-code，无参数）
+ * 验证码由服务端发到当前绑定邮箱，无需（也不能）回传邮箱
  */
 async function toSendOldCode() {
-    if (!checkField(currentEmail.value, "当前邮箱")) {
+    if (!currentEmail.value) {
+        createMessage({text: "当前账号未绑定邮箱，请先绑定邮箱", type: "warning"})
         return
     }
     sendOldCodeLoading.value = true
     try {
-        await sendEmailCode(currentEmail.value, "register")
+        await sendChangeEmailCode()
         createMessage({text: "验证码已发送到当前绑定邮箱", type: "success"})
         startCountdown(oldCodeCountdown)
     } catch {
@@ -157,7 +160,8 @@ async function toSubmit() {
         if (isBindMode.value) {
             await bindEmail(form.newEmail, form.newCode)
         } else {
-            await changeEmail(currentEmail.value, form.oldCode, form.newEmail, form.newCode)
+            // 旧邮箱由服务端以当前绑定为准，前端只需回传旧邮箱验证码
+            await changeEmail(form.oldCode, form.newEmail, form.newCode)
         }
         createMessage({text: isBindMode.value ? "邮箱绑定成功" : "邮箱换绑成功", type: "success"})
         // 成功后更新当前邮箱，切换为换绑模式
@@ -176,7 +180,7 @@ async function toSubmit() {
     <!-- 渐变背景层 -->
     <div class="login-bg"></div>
 
-    <v-card class="login-card m-a" max-width="440" width="100%">
+    <v-card class="login-card m-a" width="95%" elevation="1">
       <!-- 标题区 -->
       <div class="login-header">
         <div class="login-title">绑定 / 换绑邮箱</div>
@@ -189,7 +193,7 @@ async function toSubmit() {
         </div>
 
         <template v-else>
-          <!-- 换绑模式：展示当前绑定邮箱并发送旧邮箱验证码 -->
+          <!-- 换绑模式：展示当前绑定邮箱，发送按钮放在验证码输入框下方 -->
           <template v-if="!isBindMode">
             <div class="m-0-4">当前绑定邮箱</div>
             <v-text-field
@@ -202,27 +206,29 @@ async function toSubmit() {
             ></v-text-field>
 
             <div class="m-0-4">当前邮箱验证码</div>
-            <v-text-field
+            <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
+            <v-otp-input
                 v-model="inputContent.oldCode"
-                color="primary"
+                length="6"
+                type="number"
                 density="compact"
                 variant="outlined"
-                placeholder="请输入 6 位验证码"
                 class="m-4"
-            >
-              <template v-slot:append>
-                <v-btn
-                    color="primary"
-                    variant="text"
-                    :loading="sendOldCodeLoading"
-                    :disabled="oldCodeCountdown > 0"
-                    @click="toSendOldCode"
-                >{{ oldCodeCountdown > 0 ? `${oldCodeCountdown}s 后重发` : '发送验证码' }}</v-btn>
-              </template>
-            </v-text-field>
+            ></v-otp-input>
+
+            <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
+            <div class="flex justify-center mt-1 mb-4">
+              <v-btn
+                  color="primary"
+                  variant="text"
+                  :loading="sendOldCodeLoading"
+                  :disabled="oldCodeCountdown > 0"
+                  @click="toSendOldCode"
+              >{{ oldCodeCountdown > 0 ? `${oldCodeCountdown}s 后重发` : '获取验证码' }}</v-btn>
+            </div>
           </template>
 
-          <!-- 新邮箱（绑定/换绑通用） -->
+          <!-- 新邮箱（绑定/换绑通用），发送按钮放在验证码输入框下方 -->
           <div class="m-0-4">新邮箱</div>
           <v-text-field
               v-model="inputContent.newEmail"
@@ -234,24 +240,26 @@ async function toSubmit() {
           ></v-text-field>
 
           <div class="m-0-4">新邮箱验证码</div>
-          <v-text-field
+          <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
+          <v-otp-input
               v-model="inputContent.newCode"
-              color="primary"
+              length="6"
+              type="number"
               density="compact"
               variant="outlined"
-              placeholder="请输入 6 位验证码"
               class="m-4"
-          >
-            <template v-slot:append>
-              <v-btn
-                  color="primary"
-                  variant="text"
-                  :loading="sendNewCodeLoading"
-                  :disabled="newCodeCountdown > 0"
-                  @click="toSendNewCode"
-              >{{ newCodeCountdown > 0 ? `${newCodeCountdown}s 后重发` : '发送验证码' }}</v-btn>
-            </template>
-          </v-text-field>
+          ></v-otp-input>
+
+          <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
+          <div class="flex justify-center mt-1 mb-4">
+            <v-btn
+                color="primary"
+                variant="text"
+                :loading="sendNewCodeLoading"
+                :disabled="newCodeCountdown > 0"
+                @click="toSendNewCode"
+            >{{ newCodeCountdown > 0 ? `${newCodeCountdown}s 后重发` : '获取验证码' }}</v-btn>
+          </div>
 
           <div class="flex justify-center m-4">
             <v-btn
@@ -311,6 +319,14 @@ async function toSubmit() {
     z-index: 1;
     border-radius: 12px;
     overflow: hidden;
+}
+
+/* 输入框与字段标签限宽居中，避免卡片变宽后输入框过长 */
+.login-card .v-input,
+.login-card .m-0-4 {
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* 标题区 */

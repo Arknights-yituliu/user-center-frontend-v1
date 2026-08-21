@@ -111,7 +111,7 @@ function backToLogin() {
     <!-- 渐变背景层 -->
     <div class="login-bg"></div>
 
-    <v-card class="login-card m-a" max-width="440" width="100%">
+    <v-card class="login-card m-a" width="95%" elevation="1">
       <!-- 标题区 -->
       <div class="login-header">
         <div class="login-title">找回密码</div>
@@ -152,24 +152,26 @@ function backToLogin() {
               ></v-text-field>
 
               <div class="m-0-4">邮箱验证码</div>
-              <v-text-field
+              <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
+              <v-otp-input
                   v-model="inputContent.code"
-                  color="primary"
+                  length="6"
+                  type="number"
                   density="compact"
                   variant="outlined"
-                  placeholder="请输入 6 位验证码"
                   class="m-4"
-              >
-                <template v-slot:append>
-                  <v-btn
-                      color="primary"
-                      variant="text"
-                      :loading="sendCodeLoading"
-                      :disabled="codeCountdown > 0"
-                      @click="toSendCode"
-                  >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '发送验证码' }}</v-btn>
-                </template>
-              </v-text-field>
+              ></v-otp-input>
+
+              <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
+              <div class="flex justify-center mt-1 mb-4">
+                <v-btn
+                    color="primary"
+                    variant="text"
+                    :loading="sendCodeLoading"
+                    :disabled="codeCountdown > 0"
+                    @click="toSendCode"
+                >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '获取验证码' }}</v-btn>
+              </div>
 
               <div class="flex justify-center m-4">
                 <v-btn
@@ -287,6 +289,14 @@ function backToLogin() {
     z-index: 1;
     border-radius: 12px;
     overflow: hidden;
+}
+
+/* 输入框与字段标签限宽居中，避免卡片变宽后输入框过长 */
+.login-card .v-input,
+.login-card .m-0-4 {
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* 标题区 */
