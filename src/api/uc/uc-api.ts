@@ -261,3 +261,51 @@ export function ucRequest<T = unknown>({
       })
   })
 }
+
+/** OAuth 授权确认单权限条目（GET /oauth2/consent/info） */
+export interface ConsentScopeItem {
+  /** 权限标识（如 user.read） */
+  code: string
+  /** 权限中文描述 */
+  desc: string
+}
+
+/** OAuth 授权确认单信息（GET /oauth2/consent/info） */
+export interface ConsentInfoVO {
+  /** 发起授权的用户 uid */
+  uid: number
+  /** 客户端 ID */
+  clientId: string
+  /** 客户端名称（第三方网站名） */
+  clientName: string
+  /** 授权回调地址 */
+  redirectUri: string
+  /** 申请权限列表 */
+  scopes: ConsentScopeItem[]
+}
+
+/**
+ * 查询 OAuth 授权确认信息（UC GET /oauth2/consent/info，需登录）
+ * 确认页加载时调用：校验登录态并返回客户端名称与申请权限
+ * @param pendingId 授权确认单 ID（authorize 302 携带）
+ */
+export function getConsentInfo(pendingId: string): Promise<UcResponse<ConsentInfoVO>> {
+  return ucRequest<ConsentInfoVO>({
+    method: 'GET',
+    url: `/oauth2/consent/info?pending_id=${encodeURIComponent(pendingId)}`,
+  })
+}
+
+/**
+ * 确认/拒绝 OAuth 授权（UC POST /oauth2/consent，需登录，确认单一次性消费）
+ * 同意则返回带授权码的回跳地址，拒绝则返回 error=access_denied 回跳地址
+ * @param pendingId 授权确认单 ID
+ * @param approve 是否同意授权
+ */
+export function confirmConsent(pendingId: string, approve: boolean): Promise<UcResponse<string>> {
+  return ucRequest<string>({
+    method: 'POST',
+    url: '/oauth2/consent',
+    data: { pending_id: pendingId, approve },
+  })
+}

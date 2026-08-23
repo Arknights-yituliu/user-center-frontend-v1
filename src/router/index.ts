@@ -78,6 +78,16 @@ const router = createRouter({
         title: '注册账号',
       },
     },
+    {
+      // OAuth 授权确认页：第三方网站接入时展示申请权限（public=true 允许未登录进入，未登录时页内跳登录页）
+      path: '/oauth2/consent',
+      name: 'OAUTH_CONSENT',
+      component: () => import('../pages/account/consent.vue'),
+      meta: {
+        title: '授权确认',
+        public: true,
+      },
+    },
     // 旧路径兼容：重定向到 UserLayout 子路由
     { path: '/account/retrieve', redirect: { name: 'RETRIEVE' } },
     { path: '/account/email', redirect: { name: 'BIND_EMAIL' } },

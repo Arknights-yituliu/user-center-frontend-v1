@@ -8,4 +8,8 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  server: {
+    // 指定开发服务器启动端口为 5000
+    port: 5000,
+  },
 })
