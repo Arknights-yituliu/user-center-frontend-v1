@@ -6,6 +6,8 @@ import { UC_BASE_URL } from '../BASE_URL'
 // ---- UC 会话在浏览器端的存储 key（与站内 OAuth 会话 OAUTH_TOKEN 隔离，避免互相干扰）----
 const UC_TOKEN_KEY = 'UC_TOKEN'
 const UC_UID_KEY = 'UC_UID'
+/** OAuth 授权流程的临时 token key：与正式会话 UC_TOKEN 隔离，授权完成回跳第三方前清除，不污染本机已登录会话 */
+const UC_TMP_TOKEN_KEY = 'UC_TMP_TOKEN'
 
 /** UC 服务统一响应结构 */
 export interface UcResponse<T = unknown> {
@@ -39,8 +41,10 @@ export interface UcRequestConfig {
   url?: string
   /** 请求体数据 */
   data?: unknown
-  /** 是否携带本地 UC token（Authorization: Bearer），默认 true */
+  /** 是否携带 UC token（Authorization: Bearer），默认 true */
   auth?: boolean
+  /** 显式指定 UC token（如 OAuth 安全登录页的本次会话内存 token），优先级高于本地 localStorage 中的 token */
+  token?: string
   /** 自定义服务地址，默认 UC_BASE_URL */
   baseUrl?: string
 }
@@ -59,6 +63,29 @@ export function getUcToken(): string {
  */
 export function getUcUid(): string {
   return localStorage.getItem(UC_UID_KEY) || ''
+}
+
+/**
+ * 获取 OAuth 授权流程的临时 token（本次登录会话，与正式会话隔离，授权完成后清除）
+ * @returns 临时 UC token，无则为空串
+ */
+export function getUcTmpToken(): string {
+  return localStorage.getItem(UC_TMP_TOKEN_KEY) || ''
+}
+
+/**
+ * 保存 OAuth 授权流程的临时 token（不覆盖正式会话 UC_TOKEN）
+ * @param token 本次登录返回的 UC token
+ */
+export function setUcTmpToken(token: string): void {
+  localStorage.setItem(UC_TMP_TOKEN_KEY, token)
+}
+
+/**
+ * 清除 OAuth 授权流程的临时 token（授权完成回跳第三方前调用）
+ */
+export function clearUcTmpToken(): void {
+  localStorage.removeItem(UC_TMP_TOKEN_KEY)
 }
 
 /**
@@ -215,14 +242,16 @@ export function ucRequest<T = unknown>({
   url = '',
   data = null,
   auth = true,
+  token = '',
   baseUrl = UC_BASE_URL,
 }: UcRequestConfig = {}): Promise<UcResponse<T>> {
   return new Promise((resolve, reject) => {
     const headers: Record<string, string> = {}
     if (auth) {
-      const token = getUcToken()
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`
+      // 读取优先级：显式传入的 token（内存会话）> OAuth 授权流程临时 token > 正式会话 token
+      const authToken = token || getUcTmpToken() || getUcToken()
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
       }
     }
     axios({

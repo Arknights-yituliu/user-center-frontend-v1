@@ -2,8 +2,8 @@
 import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
-import {useRoute, useRouter} from "vue-router";
-import {getUcToken, setUcSession, ucRequest} from "../../api/uc/uc-api";
+import {useRouter} from "vue-router";
+import {setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
 
 /** 登录表单：accountType=password 时用 账号(邮箱或用户名)+密码；accountType=email 时用 邮箱+验证码 */
 const inputContent = ref({
@@ -22,22 +22,32 @@ const sendCodeLoading = ref(false)
 const codeCountdown = ref(0)
 
 const router = useRouter()
-const route = useRoute()
 
-/** OAuth 授权回跳地址：authorize 未登录时会 302 到本页并携带 ?redirect=<authorize完整地址>，登录成功后换取一次性票据并回跳继续授权 */
+/** OAuth 授权回跳地址：authorize 未登录时会 302 到本页并携带 ?redirect=<authorize完整地址> */
 const oauthRedirect = ref("")
 
 /**
+ * 本次登录返回的 UC token：
+ * 仅保存在内存用于换取一次性票据，刻意不写入 localStorage，
+ * 避免把 OAuth 授权流程的登录态污染到本机已登录的 UC 会话
+ */
+let sessionToken = ''
+
+/**
  * 登录成功后若处于 OAuth 授权回跳流程：
- * 1. 用刚登录的会话 token 调 POST /oauth2/ticket 换取一次性票据
+ * 1. 用本次登录的内存 token 调 POST /oauth2/ticket 换取一次性票据
  * 2. 携带 uc_ticket 回跳 authorize（跨站票据方案，不依赖 Cookie，登录页与 UC 不同域名也可用）
+ *
+ * 与普通登录页 login.vue 的区别：不读取本地 UC_TOKEN 自动换票，
+ * 即使本机已登录也要求用户重新输入账号密码，防止授权流程被本地会话"代确认"
  */
 async function redirectIfOAuth() {
-    if (!oauthRedirect.value || !getUcToken()) {
+    if (!oauthRedirect.value || !sessionToken) {
         return
     }
     try {
-        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket"})
+        // 显式传入本次登录 token（ucRequest 中 token 参数优先级高于本地 localStorage）
+        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket", token: sessionToken})
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
@@ -56,10 +66,7 @@ async function redirectIfOAuth() {
 onMounted(() => {
     // 解析 OAuth 授权回跳参数（authorize 未登录时 302 带 ?redirect=<authorize地址> 跳到本页）
     oauthRedirect.value = new URLSearchParams(window.location.search).get("redirect") || ""
-    // 已有本地 UC 会话且处于 OAuth 回跳流程：直接用现有会话换票回跳，无需再次手动登录
-    if (oauthRedirect.value && getUcToken()) {
-        redirectIfOAuth()
-    }
+    // 安全设计：本页刻意不读取本地 UC token 自动换票，要求用户重新登录
 })
 
 /** 跳转注册页：处于 OAuth 回跳流程时携带 redirect，供注册成功后回跳授权 */
@@ -118,27 +125,23 @@ async function sendVerificationCode() {
 }
 
 /**
- * 登录成功后的统一处理：保存 UC 会话并跳转
+ * 登录成功后的统一处理：
+ * - 本次登录 token 只存临时 key（UC_TMP_TOKEN），不写入正式会话 UC_TOKEN；授权完成回跳第三方前由授权确认页清除
+ * - 处于 OAuth 授权回跳流程时换票回跳继续授权
+ * - 非授权场景（直接访问本页）提示后转普通登录页
  * @param {{token:string, uid:string|number}} data UC 登录返回的 LoginVO
  */
 function handleLoginSuccess(data) {
-    setUcSession(data.token, data.uid)
-    // 处于 OAuth 授权回跳流程时，直接换票回跳继续授权，不走普通跳转
-    if (oauthRedirect.value) {
+    sessionToken = (data && data.token) || ""
+    if (oauthRedirect.value && sessionToken) {
+        // 写入临时 token，供授权确认页读取（授权完成后清除）
+        setUcTmpToken(sessionToken)
         redirectIfOAuth()
         return
     }
-    if (route.name === 'ACCOUNT_HOME' || route.path === '/account/home') {
-        createMessage({type: 'success', text: '登录成功'})
-        // 站内会话（OAUTH_TOKEN）由 /account/home 解析 OAuth 回调 ?token= 时建立，此处无需处理
-        setTimeout(() => {
-            window.location.reload()
-        }, 600)
-        return
-    }
-    createMessage({type: 'success', text: '登录成功，即将转跳到首页'})
+    createMessage({text: "本页为第三方授权专用登录页，请从第三方网站重新发起授权", type: "warning"})
     setTimeout(() => {
-        window.location.href = '/'
+        router.replace({name: "LOGIN"})
     }, 1500)
 }
 
@@ -202,8 +205,15 @@ async function toLogin() {
       <!-- 标题区 -->
       <div class="login-header">
         <div class="login-title">一图流账号登录</div>
-        <div class="login-sub">使用统一用户中心（UserCenter）账号登录</div>
+        <div class="login-sub">第三方授权登录，使用统一用户中心（UserCenter）账号</div>
       </div>
+
+      <!-- 安全提示：区别于普通登录页，本页不使用已登录会话 -->
+      <v-card title="安全提示" color="warning" variant="tonal" class="mx-4 mb-2">
+        <v-card-text>
+          授权流程为保护您的账号安全，不会使用本机已登录的会话，请重新输入账号密码登录。
+        </v-card-text>
+      </v-card>
 
       <v-tabs v-model="inputContent.accountType" bg-color="primary" grow>
         <v-tab value="password">密码登录</v-tab>

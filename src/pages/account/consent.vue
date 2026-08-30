@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createMessage } from '../../utils/message'
-import { confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/uc/uc-api'
+import { clearUcTmpToken, confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/uc/uc-api'
 
 const router = useRouter()
 
@@ -27,7 +27,7 @@ function consentPageUrl(): string {
 
 /**
  * 加载授权确认信息：调 GET /oauth2/consent/info
- * 未登录（code=80001）时跳登录页，登录成功后回跳本页自动重新加载
+ * 未登录（code=80001）时跳 OAuth 安全登录页，登录成功后回跳本页自动重新加载
  */
 async function loadConsentInfo(): Promise<void> {
   loading.value = true
@@ -37,9 +37,9 @@ async function loadConsentInfo(): Promise<void> {
   } catch (err) {
     const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: number }).code : undefined
     if (code === 80001) {
-      // 未登录：跳登录页，登录成功回跳本页（token 存 localStorage 后重新加载即可）
+      // 未登录：跳 OAuth 安全登录页（不读取本地 token、不持久化），授权成功后回跳本页重新加载
       createMessage({ text: '请先登录后再确认授权', type: 'warning' })
-      router.replace({ name: 'LOGIN', query: { redirect: consentPageUrl() } })
+      router.replace({ name: 'OAUTH_LOGIN', query: { redirect: consentPageUrl() } })
       return
     }
     errorMsg.value = (err && typeof err === 'object' && 'msg' in err ? (err as { msg?: string }).msg : '') || '授权确认单无效或已过期，请重新发起授权'
@@ -59,6 +59,8 @@ async function submit(approve: boolean): Promise<void> {
     const resp = await confirmConsent(pendingId.value, approve)
     const redirectUrl = resp.data
     if (redirectUrl) {
+      // 授权流程结束（同意/拒绝均已回跳第三方）：清除 OAuth 授权流程的临时 token，避免残留
+      clearUcTmpToken()
       // replace 跳转，避免确认单 ID 残留浏览器历史
       window.location.replace(redirectUrl)
       return
@@ -150,8 +152,8 @@ onMounted(() => {
             ></v-text-field>
           </div>
 
-          <!-- 拒绝 / 同意 按钮 -->
-          <div class="flex justify-center m-4">
+          <!-- 拒绝 / 同意 按钮（上下排列，同意授权为主操作） -->
+          <div class="consent-actions">
             <v-btn
                 variant="tonal"
                 size="large"
@@ -163,7 +165,7 @@ onMounted(() => {
                 color="primary"
                 variant="flat"
                 size="large"
-                class="consent-btn m-4"
+                class="consent-btn"
                 :loading="submitting"
                 @click="submit(true)"
             >同意授权</v-btn>
@@ -190,7 +192,7 @@ onMounted(() => {
 .consent-bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(229, 242, 255, 0.9) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
   z-index: 0;
 }
 
@@ -201,7 +203,7 @@ onMounted(() => {
 .consent-card {
   position: relative;
   z-index: 1;
-  border-radius: 12px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
@@ -227,10 +229,18 @@ onMounted(() => {
   border-radius: 8px;
 }
 
-/* 确认按钮 */
+/* 确认按钮（上下排列） */
+.consent-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0;
+}
+
 .consent-btn {
-  width: 120px;
-  border-radius: 8px;
+  width: 220px;
+  border-radius: 4px;
 }
 
 /* 底部安全提示 */

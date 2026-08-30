@@ -1,18 +1,6 @@
-import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
-import UserLayout from '../layouts/UserLayout.vue'
+import { createRouter, createWebHistory } from 'vue-router'
 import UserView from '../views/UserView.vue'
 import { getUcToken } from '../api/uc/uc-api'
-
-/** 未登录守卫：本地无 UC token 时重定向到登录页；meta.public 的路由（如找回密码）放行 */
-function requireAuth(to: RouteLocationNormalized): { name: 'LOGIN' } | true {
-  if (to.meta.public) {
-    return true
-  }
-  if (!getUcToken()) {
-    return { name: 'LOGIN' }
-  }
-  return true
-}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,39 +8,43 @@ const router = createRouter({
     // 根路径重定向到用户信息页
     { path: '/', redirect: { name: 'USER_PROFILE' } },
     {
-      // 用户中心模块：使用 UserLayout 作为外壳（侧边导航栏 + 主内容区）
-      path: '/user',
-      component: UserLayout,
-      beforeEnter: requireAuth,
-      children: [
-        {
-          path: 'profile',
-          name: 'USER_PROFILE',
-          component: UserView,
-          meta: {
-            title: '用户信息',
-          },
-        },
-        {
-          // 绑定/换绑邮箱：作为 UserLayout 子路由，保留侧边导航
-          path: 'email',
-          name: 'BIND_EMAIL',
-          component: () => import('../pages/account/bind-email.vue'),
-          meta: {
-            title: '绑定/换绑邮箱',
-          },
-        },
-        {
-          // 重置密码（找回密码）：meta.public=true 允许未登录从登录页进入，仍在布局内展示
-          path: 'retrieve',
-          name: 'RETRIEVE',
-          component: () => import('../pages/account/retrieve.vue'),
-          meta: {
-            title: '重置密码',
-            public: true,
-          },
-        },
-      ],
+      // 用户信息页：requiresAuth=true 需登录
+      path: '/user/profile',
+      name: 'USER_PROFILE',
+      component: UserView,
+      meta: {
+        title: '用户信息',
+        requiresAuth: true,
+      },
+    },
+    {
+      // 绑定/换绑邮箱：requiresAuth=true 需登录
+      path: '/user/email',
+      name: 'BIND_EMAIL',
+      component: () => import('../pages/account/bind-email.vue'),
+      meta: {
+        title: '绑定/换绑邮箱',
+        requiresAuth: true,
+      },
+    },
+    {
+      // 重置密码（找回密码）：未登录可从登录页进入，无需登录
+      path: '/user/retrieve',
+      name: 'RETRIEVE',
+      component: () => import('../pages/account/retrieve.vue'),
+      meta: {
+        title: '重置密码',
+      },
+    },
+    {
+      // OAuth 客户端自助管理：开发者维护自己名下的 OAuth 客户端（/oauth2/client/**），需登录
+      path: '/user/oauth-clients',
+      name: 'OAUTH_CLIENTS',
+      component: () => import('../pages/account/oauth-clients.vue'),
+      meta: {
+        title: '客户端管理',
+        requiresAuth: true,
+      },
     },
     {
       path: '/about',
@@ -68,6 +60,18 @@ const router = createRouter({
       component: () => import('../pages/account/login.vue'),
       meta: {
         title: '登录账号',
+        hideSidebar: true,
+      },
+    },
+    {
+      // OAuth 安全登录页：authorize 未登录时跳转进入（302 携带 ?redirect=<authorize地址>）。
+      // 区别于普通登录页：不读取本地 UC token 自动换票、登录后不将 token 写入 localStorage
+      path: '/oauth2/login',
+      name: 'OAUTH_LOGIN',
+      component: () => import('../pages/account/oauth-login.vue'),
+      meta: {
+        title: '授权登录',
+        hideSidebar: true,
       },
     },
     {
@@ -76,22 +80,31 @@ const router = createRouter({
       component: () => import('../pages/account/register.vue'),
       meta: {
         title: '注册账号',
+        hideSidebar: true,
       },
     },
     {
-      // OAuth 授权确认页：第三方网站接入时展示申请权限（public=true 允许未登录进入，未登录时页内跳登录页）
+      // OAuth 授权确认页：第三方网站接入时展示申请权限，未登录时页内跳授权登录页
       path: '/oauth2/consent',
       name: 'OAUTH_CONSENT',
       component: () => import('../pages/account/consent.vue'),
       meta: {
         title: '授权确认',
-        public: true,
+        hideSidebar: true,
       },
     },
-    // 旧路径兼容：重定向到 UserLayout 子路由
+    // 旧路径兼容：重定向到用户中心页面
     { path: '/account/retrieve', redirect: { name: 'RETRIEVE' } },
     { path: '/account/email', redirect: { name: 'BIND_EMAIL' } },
   ],
+})
+
+/** 全局登录守卫：meta.requiresAuth 的路由在未登录时重定向到登录页 */
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !getUcToken()) {
+    return { name: 'LOGIN' }
+  }
+  return true
 })
 
 /** 路由切换后同步页面标题（取自路由 meta.title） */

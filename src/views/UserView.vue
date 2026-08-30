@@ -107,72 +107,76 @@ async function handleLogout(): Promise<void> {
 </script>
 
 <template>
-  <main class="user-profile-page">
-    <!-- 卡片宽度为页面 95%，居中显示，不限制固定宽度 -->
-    <v-card class="profile-card mx-auto mt-10 pa-4" width="95%" elevation="1">
-      <!-- 拉取资料中 -->
-      <div v-if="pageLoading" class="d-flex justify-center my-10">
-        <v-progress-circular indeterminate color="primary"></v-progress-circular>
-      </div>
+  <div class="profile-page">
+    <!-- 拉取资料中 -->
+    <div v-if="pageLoading" class="d-flex justify-center my-12">
+      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+    </div>
 
-      <template v-else>
-        <div class="d-flex align-center mb-4">
-          <v-avatar size="64" color="primary">
-            <v-img v-if="profile.avatar" :src="profile.avatar" alt="头像" />
-            <span v-else class="text-h5">{{ profile.nickname.charAt(0) }}</span>
-          </v-avatar>
-          <div class="ml-4">
-            <div class="d-flex align-center">
-              <div class="text-h6">{{ profile.nickname }}</div>
-              <!-- 修改昵称入口小图标 -->
-              <v-btn
-                variant="text"
-                size="x-small"
-                density="comfortable"
-                icon="mdi-pencil-outline"
-                aria-label="修改昵称"
-                @click="openEditNickname"
-              ></v-btn>
+    <template v-else>
+      <!-- 基本信息卡片：腾讯云控制台风格（白色卡片 + 细边框 + 小圆角） -->
+      <v-card class="profile-card" rounded="4" elevation="0" border>
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-avatar size="56" color="primary" class="avatar">
+              <v-img v-if="profile.avatar" :src="profile.avatar" alt="头像" />
+              <span v-else class="text-h5">{{ profile.nickname.charAt(0) }}</span>
+            </v-avatar>
+            <div class="ml-4">
+              <div class="nickname-row">
+                <span class="nickname">{{ profile.nickname }}</span>
+                <v-chip size="small" color="primary" variant="tonal">正常账号</v-chip>
+              </div>
+              <div class="uid-text">UID：{{ profile.uid || '--' }}</div>
             </div>
-            <div class="text-caption text-medium-emphasis">UID：{{ profile.uid || '--' }}</div>
+          </div>
+          <v-btn variant="outlined" color="primary" size="small" prepend-icon="mdi-pencil-outline" @click="openEditNickname">
+            修改昵称
+          </v-btn>
+        </div>
+      </v-card>
+
+      <!-- 安全设置卡片 -->
+      <v-card class="profile-card mt-4" rounded="4" elevation="0" border>
+        <div class="card-title">安全设置</div>
+        <v-divider class="title-divider"></v-divider>
+        <div class="info-row">
+          <div class="info-label">
+            <v-icon icon="mdi-email-outline" size="18" color="#86909c" class="mr-2"></v-icon>
+            邮箱
+          </div>
+          <div class="info-value">{{ profile.email || '未绑定' }}</div>
+          <div class="info-action">
+            <v-btn variant="text" size="small" color="primary" to="/user/email">绑定/换绑</v-btn>
           </div>
         </div>
-
-        <v-divider />
-
-        <v-list>
-          <!-- 每行信息加大上下间距（py-3） -->
-          <v-list-item
-            class="py-3"
-            title="邮箱"
-            :subtitle="profile.email || '未绑定'"
-            prepend-icon="mdi-email-outline"
-          >
-            <!-- 绑定/换绑邮箱入口放在邮箱行右侧 -->
-            <template v-slot:append>
-              <v-btn variant="text" size="small" color="primary" to="/user/email">绑定/换绑</v-btn>
-            </template>
-          </v-list-item>
-          <v-list-item
-            class="py-3"
-            title="账户状态"
-            :subtitle="statusText[profile.status] || '未知'"
-            prepend-icon="mdi-shield-account-outline"
-          />
-        </v-list>
-
-        <v-divider />
-
-        <div class="d-flex justify-center mt-4">
-          <!-- block 会拉伸占满父容器，改为固定 200px 宽度 -->
-          <v-btn color="error" style="width: 200px" @click="handleLogout"> 退出登录 </v-btn>
+        <v-divider class="row-divider"></v-divider>
+        <div class="info-row">
+          <div class="info-label">
+            <v-icon icon="mdi-shield-account-outline" size="18" color="#86909c" class="mr-2"></v-icon>
+            账户状态
+          </div>
+          <div class="info-value">{{ statusText[profile.status] || '未知' }}</div>
         </div>
-      </template>
-    </v-card>
+      </v-card>
+
+      <!-- 账号操作卡片 -->
+      <v-card class="profile-card mt-4" rounded="4" elevation="0" border>
+        <div class="card-title">账号操作</div>
+        <v-divider class="title-divider"></v-divider>
+        <div class="danger-row">
+          <div>
+            <div class="danger-title">退出当前账号</div>
+            <div class="danger-desc">退出后需重新登录才能使用本中心功能</div>
+          </div>
+          <v-btn color="error" variant="tonal" size="small" @click="handleLogout">退出登录</v-btn>
+        </div>
+      </v-card>
+    </template>
 
     <!-- 修改昵称对话框（不设 persistent，点击四周或按 ESC 可关闭） -->
     <v-dialog v-model="editNicknameDialog" max-width="400">
-      <v-card>
+      <v-card rounded="4">
         <v-card-title>修改昵称</v-card-title>
         <v-card-text>
           <v-text-field
@@ -192,11 +196,115 @@ async function handleLogout(): Promise<void> {
         </v-card-actions>
       </v-card>
     </v-dialog>
-  </main>
+  </div>
 </template>
 
 <style scoped>
-.user-profile-page {
-  padding: 0 16px 32px;
+/* 页面容器：浅灰背景上承载白色卡片，限宽居中，垂直流式布局 */
+.profile-page {
+  padding: 24px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 白色内容卡片 */
+.profile-card {
+  background: #ffffff;
+  border-color: #e5e6eb;
+}
+
+/* 卡片头部：头像 + 昵称/UID，右侧操作按钮 */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.nickname-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nickname {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.uid-text {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #86909c;
+}
+
+/* 卡片标题区 */
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+  padding: 16px 24px 12px;
+}
+
+.title-divider {
+  border-color: #e5e6eb;
+}
+
+/* 信息行：label + value + 操作 */
+.info-row {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  min-height: 48px;
+}
+
+.info-label {
+  display: flex;
+  align-items: center;
+  width: 180px;
+  font-size: 14px;
+  color: #4e5969;
+  flex-shrink: 0;
+}
+
+.info-value {
+  flex: 1;
+  font-size: 14px;
+  color: #1d2129;
+}
+
+.info-action {
+  flex-shrink: 0;
+}
+
+.row-divider {
+  margin: 0 24px;
+  border-color: #f2f3f5;
+}
+
+/* 危险操作区 */
+.danger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px 18px;
+}
+
+.danger-title {
+  font-size: 14px;
+  color: #1d2129;
+}
+
+.danger-desc {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #86909c;
 }
 </style>

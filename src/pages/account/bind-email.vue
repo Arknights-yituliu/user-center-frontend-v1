@@ -1,6 +1,5 @@
 <script setup>
 import {ref, computed, onMounted} from "vue";
-import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
 import {useRouter} from "vue-router";
 import {
@@ -177,10 +176,7 @@ async function toSubmit() {
 
 <template>
   <div class="login-page">
-    <!-- 渐变背景层 -->
-    <div class="login-bg"></div>
-
-    <v-card class="login-card m-a" width="95%" elevation="1">
+    <v-card class="login-card m-a" width="95%" rounded="4" elevation="0" border>
       <!-- 标题区 -->
       <div class="login-header">
         <div class="login-title">绑定 / 换绑邮箱</div>
@@ -294,30 +290,16 @@ async function toSubmit() {
 
 <style scoped>
 .login-page {
-    position: relative;
-    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 24px;
-}
-
-/* 渐变背景层 */
-.login-bg {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(229, 242, 255, 0.9) 100%);
-    z-index: 0;
-}
-
-[data-theme="dark"] .login-bg {
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+    min-height: 0;
+    flex: 1;
 }
 
 .login-card {
-    position: relative;
-    z-index: 1;
-    border-radius: 12px;
+    border-radius: 4px;
     overflow: hidden;
 }
 
@@ -339,16 +321,17 @@ async function toSubmit() {
     font-size: 22px;
     font-weight: 600;
     margin-bottom: 6px;
+    color: #1d2129;
 }
 
 .login-sub {
     font-size: 13px;
-    opacity: 0.6;
+    color: #86909c;
 }
 
 /* 步骤按钮 */
 .step-btn {
     width: 200px;
-    border-radius: 8px;
+    border-radius: 4px;
 }
 </style>

@@ -1,10 +1,10 @@
 <script setup>
-import {ref} from "vue";
+import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import '../../assets/css/account/login.v2.phone.scss'
 import {createMessage} from "../../utils/message";
-import {useRouter} from "vue-router";
-import {setUcSession, ucRequest} from "../../api/uc/uc-api";
+import {useRoute, useRouter} from "vue-router";
+import {setUcSession, setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
 
 /** 注册表单：password=账号注册（可带邮箱） email=邮箱注册（必须带邮箱验证码） */
 const inputContent = ref({
@@ -24,6 +24,10 @@ const sendCodeLoading = ref(false)
 const codeCountdown = ref(0)
 
 const router = useRouter()
+const route = useRoute()
+
+/** OAuth 授权回跳地址：从登录页 / OAuth 安全登录页"去注册"跳转时携带（?redirect=<authorize完整地址>） */
+const oauthRedirect = ref("")
 
 /** 基础非空校验 */
 function checkField(value, label) {
@@ -33,6 +37,39 @@ function checkField(value, label) {
     }
     return true
 }
+
+/**
+ * 注册成功且处于 OAuth 授权回跳流程时：
+ * 1. 用本次注册返回的内存 token 调 POST /oauth2/ticket 换取一次性票据（不写入 localStorage，与 OAuth 安全登录页一致）
+ * 2. 携带 uc_ticket 回跳 authorize 继续授权
+ * @param token 注册接口返回的 UC token
+ */
+async function redirectIfOAuth(token) {
+    if (!oauthRedirect.value || !token) {
+        return
+    }
+    try {
+        // 显式传入本次注册 token（ucRequest 中 token 参数优先级高于本地 localStorage）
+        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket", token})
+        const ticket = resp.data && resp.data.ticket
+        if (!ticket) {
+            createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
+            return
+        }
+        // 携带 uc_ticket 回跳原 authorize 地址；replace 避免票据残留浏览器历史
+        const target = new URL(oauthRedirect.value)
+        target.searchParams.set("uc_ticket", ticket)
+        createMessage({text: "注册成功，已换取票据，正在回跳授权页…", type: "success"})
+        window.location.replace(target.toString())
+    } catch {
+        // 错误提示已在 ucRequest 内部统一弹出
+    }
+}
+
+onMounted(() => {
+    // 解析登录页跳转时携带的 OAuth 授权回跳参数
+    oauthRedirect.value = route.query.redirect ? String(route.query.redirect) : ""
+})
 
 /** 校验密码规则（与 UC 一致：6-32 位，数字、字母、@、下划线） */
 function checkPassword(password) {
@@ -142,8 +179,15 @@ async function toRegister() {
             data: payload,
             auth: false,
         })
-        // 注册即自动登录：保存 UC 会话
+        // 注册即自动登录
         const data = resp.data || {}
+        // 处于 OAuth 授权回跳流程：不写入正式会话，临时 token 供授权确认页读取（授权完成后清除），换票回跳继续授权
+        if (oauthRedirect.value) {
+            setUcTmpToken(data.token)
+            redirectIfOAuth(data.token)
+            return
+        }
+        // 普通注册：保存 UC 会话并跳转首页
         setUcSession(data.token, data.uid)
         createMessage({type: 'success', text: '注册成功，即将转跳到首页'})
         // 原项目此处跳转 OperatorSurvey 干员导入流程（本项目无该路由），改为跳转首页
@@ -353,7 +397,7 @@ async function toRegister() {
 .login-bg {
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(229, 242, 255, 0.9) 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
     z-index: 0;
 }
 
@@ -364,7 +408,7 @@ async function toRegister() {
 .login-card {
     position: relative;
     z-index: 1;
-    border-radius: 12px;
+    border-radius: 4px;
     overflow: hidden;
 }
 
