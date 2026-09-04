@@ -22,13 +22,20 @@ const accountNav: NavItem[] = [
 ]
 
 /** 导航分组：开发者 */
-const devNav: NavItem[] = [{ title: '客户端管理', to: '/user/oauth-clients', icon: 'mdi-api' }]
+const devNav: NavItem[] = [
+  { title: '客户端管理', to: '/user/oauth-clients', icon: 'mdi-api' },
+  { title: '无后端 Web 授权', to: '/user/oauth-guide', icon: 'mdi-web' },
+  { title: '加密客户端授权', to: '/user/oauth-server-guide', icon: 'mdi-server-security' },
+  { title: 'OAuth 用户配置', to: '/user/oauth-config-guide', icon: 'mdi-cloud-sync-outline' },
+]
 
 const route = useRoute()
 const router = useRouter()
 
 /** 登录状态（token 存 localStorage 非响应式，路由变化时重新读取） */
 const loggedIn = ref(!!getUcToken())
+/** 移动端侧边导航显示状态 */
+const mobileNavOpen = ref(false)
 
 /** 当前页面是否隐藏侧边栏（登录/注册/授权类全屏页面，meta.hideSidebar=true） */
 const hideSidebar = computed(() => !!route.meta.hideSidebar)
@@ -37,6 +44,7 @@ watch(
   () => route.fullPath,
   () => {
     loggedIn.value = !!getUcToken()
+    mobileNavOpen.value = false
   },
 )
 
@@ -75,6 +83,14 @@ async function handleLogout(): Promise<void> {
       <!-- 顶栏：横跨整个屏幕 -->
       <header class="app-header">
         <div class="header-left">
+          <v-btn
+            v-if="!hideSidebar"
+            class="mobile-nav-toggle"
+            variant="text"
+            :icon="mobileNavOpen ? 'mdi-close' : 'mdi-menu'"
+            :aria-label="mobileNavOpen ? '关闭导航菜单' : '打开导航菜单'"
+            @click="mobileNavOpen = !mobileNavOpen"
+          ></v-btn>
           <RouterLink to="/" class="header-brand">
             <!-- 品牌 Logo 图片 -->
             <img class="brand-logo" src="/logo.png" alt="一图流用户中心" width="24" height="24" />
@@ -85,7 +101,13 @@ async function handleLogout(): Promise<void> {
           <!-- 主题切换菜单（蓝色 / 橙色） -->
           <v-menu location="bottom end">
             <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" variant="text" icon="mdi-palette-outline" class="header-btn" aria-label="切换主题"></v-btn>
+              <v-btn
+                v-bind="props"
+                variant="text"
+                icon="mdi-palette-outline"
+                class="header-btn"
+                aria-label="切换主题"
+              ></v-btn>
             </template>
             <v-list density="compact" min-width="160">
               <v-list-item
@@ -106,16 +128,29 @@ async function handleLogout(): Promise<void> {
           </v-menu>
 
           <template v-if="loggedIn">
-            <v-btn variant="text" color="primary" to="/user/profile" class="header-btn">个人中心</v-btn>
-            <v-btn variant="text" color="default" class="header-btn" @click="handleLogout">退出登录</v-btn>
+            <v-btn variant="text" color="primary" to="/user/profile" class="header-btn"
+              >个人中心</v-btn
+            >
+            <v-btn variant="text" color="default" class="header-btn" @click="handleLogout"
+              >退出登录</v-btn
+            >
           </template>
-          <v-btn v-else variant="text" color="primary" to="/account/login" class="header-btn">登录</v-btn>
+          <v-btn v-else variant="text" color="primary" to="/account/login" class="header-btn"
+            >登录</v-btn
+          >
         </div>
       </header>
 
       <!-- 侧边导航栏 + 主内容区（顶栏下方）；登录/注册/授权类页面隐藏侧边栏 -->
       <div class="app-body">
-        <aside v-if="!hideSidebar" class="app-sidebar">
+        <button
+          v-if="!hideSidebar && mobileNavOpen"
+          class="sidebar-backdrop"
+          type="button"
+          aria-label="关闭导航菜单"
+          @click="mobileNavOpen = false"
+        ></button>
+        <aside v-if="!hideSidebar" class="app-sidebar" :class="{ 'mobile-open': mobileNavOpen }">
           <nav class="sidebar-nav">
             <div class="nav-group-title">账号中心</div>
             <RouterLink
@@ -160,8 +195,9 @@ body {
 
 /* 全局字体：优先系统中文字体（腾讯云控制台风格） */
 :root {
-  --v-theme-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
-    'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --v-theme-font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   --v-theme-font-size: 14px;
 }
 
@@ -189,6 +225,10 @@ body {
 .header-left {
   display: flex;
   align-items: center;
+}
+
+.mobile-nav-toggle {
+  display: none;
 }
 
 .header-brand {
@@ -253,7 +293,9 @@ body {
   text-decoration: none;
   border-radius: 4px;
   position: relative;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .nav-item:hover {
@@ -291,10 +333,58 @@ body {
   background-color: #f7f8fa;
 }
 
+.sidebar-backdrop {
+  display: none;
+}
+
 /* 登录/授权类全屏居中页面：在全局布局内用 flex 撑满主内容区，避免 min-height:100vh 导致溢出 */
 .login-page,
 .consent-page {
   min-height: 0 !important;
   flex: 1;
+}
+
+@media (max-width: 700px) {
+  .app-header {
+    padding: 0 12px;
+  }
+
+  .mobile-nav-toggle {
+    display: inline-flex;
+    margin-right: 2px;
+  }
+
+  .brand-text {
+    font-size: 16px;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    z-index: 20;
+    top: 56px;
+    bottom: 0;
+    left: 0;
+    width: 220px;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 12px rgb(0 0 0 / 0.12);
+    transition: transform 0.2s ease;
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 19;
+    inset: 56px 0 0;
+    display: block;
+    border: 0;
+    background: rgb(0 0 0 / 0.3);
+  }
+
+  .app-main {
+    width: 100%;
+  }
 }
 </style>

@@ -47,6 +47,36 @@ const router = createRouter({
       },
     },
     {
+      // 无后端 Web 应用 OAuth2 接入指南：可从客户端管理页带入接入参数，需登录
+      path: '/user/oauth-guide',
+      name: 'OAUTH_WEB_GUIDE',
+      component: () => import('../pages/account/oauth-web-guide.vue'),
+      meta: {
+        title: '无后端 Web 授权',
+        requiresAuth: true,
+      },
+    },
+    {
+      // 加密客户端 OAuth2 接入指南：密钥、PKCE 和令牌均由可信业务后端管理，需登录
+      path: '/user/oauth-server-guide',
+      name: 'OAUTH_SERVER_GUIDE',
+      component: () => import('../pages/account/oauth-server-guide.vue'),
+      meta: {
+        title: '加密客户端授权',
+        requiresAuth: true,
+      },
+    },
+    {
+      // OAuth access token 用户配置接口指南：保存、读取、删除、配额与 CAS 冲突处理，需登录
+      path: '/user/oauth-config-guide',
+      name: 'OAUTH_CONFIG_GUIDE',
+      component: () => import('../pages/account/oauth-config-guide.vue'),
+      meta: {
+        title: 'OAuth 用户配置',
+        requiresAuth: true,
+      },
+    },
+    {
       path: '/about',
       name: 'about',
       // route level code-splitting
