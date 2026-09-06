@@ -5,40 +5,61 @@ import { createMessage } from '../../utils/message'
 
 const sections = [
   { id: 'conventions', label: '1. 通用约定' },
-  { id: 'save', label: '2. 保存配置' },
-  { id: 'read', label: '3. 读取配置' },
-  { id: 'delete', label: '4. 删除配置' },
-  { id: 'quota', label: '5. 查询配额' },
-  { id: 'errors', label: '6. 错误处理' },
-  { id: 'sync', label: '7. 推荐同步流程' },
+  { id: 'save', label: '2. 保存配置（save）' },
+  { id: 'save-if-match', label: '3. 条件更新（save-if-match）' },
+  { id: 'read', label: '4. 读取配置' },
+  { id: 'delete', label: '5. 删除配置' },
+  { id: 'quota', label: '6. 查询配额' },
+  { id: 'errors', label: '7. 常见错误' },
+  { id: 'sync', label: '8. 推荐同步流程' },
 ]
 
-const requestFields = [
-  ['id', 'integer / null', '否', '创建时省略或传 null；更新时传读取接口返回的配置 ID'],
+/** save 接口（无条件保存）请求字段：expectedHash 不参与校验，仅做覆盖式写入 */
+const saveRequestFields = [
+  ['id', 'integer / null', '否', '为空=新建；非空=按 id 覆盖更新，目标必须属于当前用户和当前 OAuth 客户端'],
   ['category', 'string', '是', '配置分类，1-32 个字符'],
   ['version', 'string', '是', '配置版本，1-32 个字符'],
   ['name', 'string', '是', '配置名称，1-32 个字符'],
   ['source', 'string', '否', '配置来源，最多 32 个字符'],
   ['note', 'string', '否', '备注，最多 32 个字符'],
   ['config', 'object / string', '是', '配置内容，不能为 null'],
-  ['expectedHash', 'string / null', '是', '创建传 null；更新传上次读取的 64 位 SHA-256 hash'],
+  ['expectedHash', 'string / null', '否', 'save 接口不使用：创建时携带非空值返回 HTTP 400；更新时携带一律忽略'],
+]
+
+/** save-if-match 接口（CAS 条件更新）请求字段：id 与 expectedHash 均必填，不承担创建 */
+const matchRequestFields = [
+  ['id', 'integer', '是', '读取接口返回的配置 ID，必须属于当前用户和当前 OAuth 客户端'],
+  ['category', 'string', '是', '配置分类，1-32 个字符，须与原记录一致'],
+  ['version', 'string', '是', '配置版本，1-32 个字符，须与原记录一致'],
+  ['name', 'string', '是', '配置名称，1-32 个字符，须与原记录一致'],
+  ['source', 'string', '否', '配置来源，最多 32 个字符'],
+  ['note', 'string', '否', '备注，最多 32 个字符'],
+  ['config', 'object / string', '是', '配置内容，不能为 null'],
+  ['expectedHash', 'string', '是', '目标记录的最新 64 位 SHA-256 hash，由读取接口或上次保存响应返回'],
 ]
 
 const errorCodes = [
-  ['400', '10002', '字段缺失、格式错误，或更新时修改了身份字段', '修正请求后重试'],
-  ['409', '10005', '创建目标已存在，或更新使用了过期 hash', '重新读取并处理冲突'],
-  ['200', '10001', '配置不存在或不属于当前 OAuth 客户端', '停止操作并重新读取列表'],
+  ['400', '10002', '字段缺失、格式错误、更新时修改了身份字段，或 save-if-match 缺少 id / expectedHash', '修正请求后重试'],
+  ['409', '10005', 'save 创建目标已存在、按 id 覆盖的目标不存在，或 save-if-match 携带过期 hash', '重新读取配置并处理冲突'],
+  ['200', '10001', '删除的配置不存在或不属于当前 OAuth 客户端', '停止操作并重新读取配置列表'],
   ['200', '10004', '用户配置总量超过当前配额', '删除不需要的配置或申请提额'],
   ['200', '80001', 'access token 缺失、无效或登录状态失效', '重新获取有效 access token'],
   ['200', '40001', '服务端内部错误', '稍后重试并保留请求信息'],
 ]
 
+/** 防并发条件更新（save-if-match）推荐流程：以读取到的 id 与 hash 作为 CAS 提交基线 */
 const syncSteps = [
-  ['读取', '获取目标配置的 id、内容和 hash'],
-  ['编辑', '在本地基于读取到的版本修改配置'],
-  ['保存', '将 id 和 hash 分别作为 id、expectedHash 提交'],
-  ['更新基线', '保存成功后用响应中的新 hash 替换旧值'],
-  ['处理冲突', '收到 HTTP 409 后重新读取，不循环重试旧 hash'],
+  ['读取', '调用读取接口获得目标配置的 id、内容和 hash'],
+  ['编辑', '在本地基于该版本编辑配置'],
+  ['保存', '调用 save-if-match，将读取到的 id 和 hash 分别作为 id、expectedHash'],
+  ['更新基线', '保存成功后用响应中的新 hash 替换本地旧 hash'],
+  ['处理冲突', '收到 HTTP 409 时重新读取配置，不使用旧 hash 循环重试'],
+]
+
+/** 无条件保存（save）的使用要点：新建传 id=null，覆盖更新按 id 直接写入 */
+const saveFlowNotes = [
+  '新建：调用 POST /oauth2/config/save，id 为空（省略或传 null），可省略 expectedHash 或显式传 null。',
+  '覆盖更新：同样调用 save，id 传目标配置 ID，无需 expectedHash；适合可容忍“最后写入者胜出”的同步场景。',
 ]
 
 const params = reactive({
@@ -73,6 +94,12 @@ const saveRequest = computed(
 Content-Type: application/json
 Authorization: Bearer {ACCESS_TOKEN}`,
 )
+/** save-if-match 条件更新端点：仅当 expectedHash 与目标当前 content_hash 一致才落库 */
+const matchRequest = computed(
+  () => `POST ${baseUrl.value}/oauth2/config/save-if-match
+Content-Type: application/json
+Authorization: Bearer {ACCESS_TOKEN}`,
+)
 const listRequest = computed(
   () => `GET ${baseUrl.value}/oauth2/config/list?${queryString.value}
 Authorization: Bearer {ACCESS_TOKEN}`,
@@ -100,6 +127,22 @@ const createPayload = computed(
     "fontSize": 14
   },
   "expectedHash": null
+}`,
+)
+
+/** save 覆盖更新请求体：按 id 直接覆盖，save 接口不使用 expectedHash */
+const overwritePayload = computed(
+  () => `{
+  "id": 123,
+  "category": "${category.value}",
+  "version": "${version.value}",
+  "name": "${configName.value}",
+  "source": "web",
+  "note": "自动同步",
+  "config": {
+    "theme": "light",
+    "fontSize": 16
+  }
 }`,
 )
 
@@ -370,8 +413,8 @@ onBeforeUnmount(() => observer?.disconnect())
           <div class="section-heading">
             <span>02</span>
             <div>
-              <h2>保存配置</h2>
-              <p>保存接口使用 CAS 语义，不提供无条件覆盖。</p>
+              <h2>保存配置（save）</h2>
+              <p>无条件创建或覆盖更新（last-write-wins），不做并发控制。</p>
             </div>
           </div>
           <div class="code-example">
@@ -388,6 +431,12 @@ onBeforeUnmount(() => observer?.disconnect())
             </div>
             <pre><code>{{ saveRequest }}</code></pre>
           </div>
+          <p>
+            <code>id</code> 为空（省略或传 <code>null</code>）→ 新建配置；<code>id</code>
+            非空 → 按 <code>id</code> 直接覆盖更新（last-write-wins）：不校验内容 hash，不要求携带
+            <code>expectedHash</code>（携带也会被忽略）。需要防止并发覆盖的应用请改用第 3 节的
+            <code>POST /oauth2/config/save-if-match</code>。
+          </p>
           <div class="table-wrap">
             <table>
               <thead>
@@ -399,7 +448,7 @@ onBeforeUnmount(() => observer?.disconnect())
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="field in requestFields" :key="field[0]">
+                <tr v-for="field in saveRequestFields" :key="field[0]">
                   <td>
                     <code>{{ field[0] }}</code>
                   </td>
@@ -410,12 +459,12 @@ onBeforeUnmount(() => observer?.disconnect())
               </tbody>
             </table>
           </div>
-          <div class="callout warning">
-            <v-icon icon="mdi-alert-outline"></v-icon>
+          <div class="callout danger">
+            <v-icon icon="mdi-alert-decagram-outline"></v-icon>
             <div>
-              <strong>expectedHash 不能省略</strong>
+              <strong>save 不校验 expectedHash</strong>
               <p>
-                创建时必须显式传 null；更新时必须传上一次读取到的 hash。省略字段会返回 HTTP 400。
+                创建时携带非空 <code>expectedHash</code> 会返回 HTTP 400；更新时携带一律被忽略，总是以本次内容覆盖。
               </p>
             </div>
           </div>
@@ -425,7 +474,7 @@ onBeforeUnmount(() => observer?.disconnect())
               <h3>首次创建</h3>
               <div class="code-example">
                 <div class="code-toolbar">
-                  <span>JSON · expectedHash = null</span
+                  <span>JSON · id 为空</span
                   ><v-btn
                     icon="mdi-content-copy"
                     variant="text"
@@ -439,20 +488,20 @@ onBeforeUnmount(() => observer?.disconnect())
               </div>
             </div>
             <div>
-              <h3>更新配置</h3>
+              <h3>覆盖更新</h3>
               <div class="code-example">
                 <div class="code-toolbar">
-                  <span>JSON · 使用上次 hash</span
+                  <span>JSON · 按 id 覆盖</span
                   ><v-btn
                     icon="mdi-content-copy"
                     variant="text"
                     size="x-small"
-                    aria-label="复制更新示例"
+                    aria-label="复制覆盖示例"
                     title="复制示例"
-                    @click="copyText(updatePayload, '更新示例')"
+                    @click="copyText(overwritePayload, '覆盖示例')"
                   ></v-btn>
                 </div>
-                <pre><code>{{ updatePayload }}</code></pre>
+                <pre><code>{{ overwritePayload }}</code></pre>
               </div>
             </div>
           </div>
@@ -460,7 +509,7 @@ onBeforeUnmount(() => observer?.disconnect())
           <h3>保存成功</h3>
           <div class="code-example">
             <div class="code-toolbar">
-              <span>HTTP 200 · 保存新 hash</span
+              <span>HTTP 200 · 返回新 hash</span
               ><v-btn
                 icon="mdi-content-copy"
                 variant="text"
@@ -473,10 +522,11 @@ onBeforeUnmount(() => observer?.disconnect())
             <pre><code>{{ saveResponse }}</code></pre>
           </div>
           <p>
-            下一次更新时，必须把响应中的新 <code>hash</code> 作为 <code>expectedHash</code> 传回。
+            接入方应保存响应中的新 <code>hash</code>：save 接口本身不校验它，但后续使用 save-if-match
+            防并发或再次读取时仍需最新 hash。
           </p>
 
-          <h3>CAS 冲突</h3>
+          <h3>冲突与失败</h3>
           <div class="conflict-layout">
             <div class="code-example">
               <div class="code-toolbar">
@@ -494,9 +544,132 @@ onBeforeUnmount(() => observer?.disconnect())
             </div>
             <div class="conflict-action">
               <v-icon icon="mdi-source-branch-sync" size="28"></v-icon
-              ><strong>不要直接重试覆盖</strong>
+              ><strong>不要携带旧 hash 循环重试</strong>
               <p>
-                重新读取最新配置，再决定覆盖、合并或提示用户。目标已删除时 currentHash 为 null。
+                创建冲突时 <code>currentHash</code> 为已存在记录的内容 hash；按 id 覆盖的目标不存在或不属于当前
+                OAuth 客户端时 <code>currentHash</code> 为 null。重新读取配置后决定新建或覆盖。
+              </p>
+            </div>
+          </div>
+          <p>
+            按 <code>id</code> 覆盖时，<code>category</code>、<code>version</code>、<code>name</code>
+            必须与目标记录一致，否则返回 HTTP 400。
+          </p>
+        </section>
+
+        <section id="save-if-match" class="doc-section">
+          <div class="section-heading">
+            <span>03</span>
+            <div>
+              <h2>条件更新（save-if-match）</h2>
+              <p>CAS 语义的按 id 条件更新，防止并发覆盖，不承担创建。</p>
+            </div>
+          </div>
+          <div class="code-example">
+            <div class="code-toolbar">
+              <span>HTTP · CAS 端点</span
+              ><v-btn
+                icon="mdi-content-copy"
+                variant="text"
+                size="x-small"
+                aria-label="复制条件更新请求"
+                title="复制请求"
+                @click="copyText(matchRequest, '条件更新请求')"
+              ></v-btn>
+            </div>
+            <pre><code>{{ matchRequest }}</code></pre>
+          </div>
+          <ul class="plain-list">
+            <li><code>id</code> 与 <code>expectedHash</code> 均必填，缺少任一字段返回 HTTP 400。</li>
+            <li>
+              仅当目标记录当前的 <code>content_hash</code> 等于请求中的 <code>expectedHash</code>
+              时才落库，并返回新 <code>hash</code>。
+            </li>
+            <li>
+              hash 不一致（被其他请求先更新）或目标记录已被删除时返回 HTTP 409（<code>code=10005</code>），
+              <code>data.currentHash</code> 为服务端最新 hash（已删除则为 <code>null</code>）。
+            </li>
+          </ul>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>字段</th>
+                  <th>类型</th>
+                  <th>必填</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="field in matchRequestFields" :key="field[0]">
+                  <td>
+                    <code>{{ field[0] }}</code>
+                  </td>
+                  <td>{{ field[1] }}</td>
+                  <td>{{ field[2] }}</td>
+                  <td>{{ field[3] }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>更新示例</h3>
+          <div class="code-example">
+            <div class="code-toolbar">
+              <span>JSON · expectedHash 用上次读取的 hash</span
+              ><v-btn
+                icon="mdi-content-copy"
+                variant="text"
+                size="x-small"
+                aria-label="复制条件更新示例"
+                title="复制示例"
+                @click="copyText(updatePayload, '条件更新示例')"
+              ></v-btn>
+            </div>
+            <pre><code>{{ updatePayload }}</code></pre>
+          </div>
+
+          <h3>成功响应</h3>
+          <div class="code-example">
+            <div class="code-toolbar">
+              <span>HTTP 200 · 返回新 hash</span
+              ><v-btn
+                icon="mdi-content-copy"
+                variant="text"
+                size="x-small"
+                aria-label="复制成功响应"
+                title="复制响应"
+                @click="copyText(saveResponse, '成功响应')"
+              ></v-btn>
+            </div>
+            <pre><code>{{ saveResponse }}</code></pre>
+          </div>
+          <p>
+            接入方应保存响应中的新 <code>hash</code>，并在下一次条件更新时作为 <code>expectedHash</code> 传回。
+          </p>
+
+          <h3>冲突响应</h3>
+          <div class="conflict-layout">
+            <div class="code-example">
+              <div class="code-toolbar">
+                <span>HTTP 409 Conflict</span
+                ><v-btn
+                  icon="mdi-content-copy"
+                  variant="text"
+                  size="x-small"
+                  aria-label="复制冲突响应"
+                  title="复制响应"
+                  @click="copyText(conflictResponse, '冲突响应')"
+                ></v-btn>
+              </div>
+              <pre><code>{{ conflictResponse }}</code></pre>
+            </div>
+            <div class="conflict-action">
+              <v-icon icon="mdi-source-branch-sync" size="28"></v-icon
+              ><strong>出现冲突时不要直接重试覆盖</strong>
+              <p>
+                重新读取最新配置，根据新内容决定覆盖、合并或提示用户。目标记录已被删除时
+                <code>currentHash</code> 为 null。
               </p>
             </div>
           </div>
@@ -504,7 +677,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <section id="read" class="doc-section">
           <div class="section-heading">
-            <span>03</span>
+            <span>04</span>
             <div>
               <h2>读取配置</h2>
               <p>按分类查询，并可使用版本与名称精确筛选。</p>
@@ -550,15 +723,18 @@ onBeforeUnmount(() => observer?.disconnect())
           <div class="callout info">
             <v-icon icon="mdi-database-search-outline"></v-icon>
             <div>
-              <strong>保存 id 与 hash</strong>
-              <p>更新目标配置时必须同时使用读取结果中的 id 和 hash。</p>
+              <strong>无条件覆盖与防并发</strong>
+              <p>
+                无条件覆盖更新仅需目标记录的 <code>id</code>；需要防并发时，再以记录的 <code>hash</code>
+                作为 <code>expectedHash</code> 调用 save-if-match。
+              </p>
             </div>
           </div>
         </section>
 
         <section id="delete" class="doc-section">
           <div class="section-heading">
-            <span>04</span>
+            <span>05</span>
             <div>
               <h2>删除配置</h2>
               <p>删除为物理删除且不可恢复，不使用 CAS。</p>
@@ -593,7 +769,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <section id="quota" class="doc-section">
           <div class="section-heading">
-            <span>05</span>
+            <span>06</span>
             <div>
               <h2>查询配额</h2>
               <p>配额按用户统计，覆盖该用户在全部 OAuth 客户端下的配置。</p>
@@ -651,7 +827,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <section id="errors" class="doc-section">
           <div class="section-heading">
-            <span>06</span>
+            <span>07</span>
             <div>
               <h2>常见错误</h2>
               <p>根据 HTTP 状态和业务 code 共同决定恢复策略。</p>
@@ -683,12 +859,13 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <section id="sync" class="doc-section">
           <div class="section-heading">
-            <span>07</span>
+            <span>08</span>
             <div>
               <h2>推荐同步流程</h2>
-              <p>用明确的版本基线避免覆盖其他窗口或设备上的更新。</p>
+              <p>按是否需要防并发覆盖，选择 save-if-match 或 save。</p>
             </div>
           </div>
+          <h3>8.1 防并发条件更新（save-if-match）</h3>
           <ol class="sync-flow">
             <li v-for="(step, index) in syncSteps" :key="step[0]">
               <span>{{ index + 1 }}</span>
@@ -698,13 +875,10 @@ onBeforeUnmount(() => observer?.disconnect())
               </div>
             </li>
           </ol>
-          <div class="callout warning">
-            <v-icon icon="mdi-lightbulb-alert-outline"></v-icon>
-            <div>
-              <strong>首次创建也必须包含 expectedHash</strong>
-              <p>不需要预先读取 hash，但请求体中仍须明确传入 <code>"expectedHash": null</code>。</p>
-            </div>
-          </div>
+          <h3>8.2 无条件保存（save）</h3>
+          <ul class="plain-list">
+            <li v-for="note in saveFlowNotes" :key="note">{{ note }}</li>
+          </ul>
         </section>
       </article>
     </div>
