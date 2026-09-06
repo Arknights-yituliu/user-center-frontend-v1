@@ -17,6 +17,7 @@ interface NavItem {
 /** 导航分组：账号中心 */
 const accountNav: NavItem[] = [
   { title: '用户信息', to: '/user/profile', icon: 'mdi-account-outline' },
+  { title: '我的授权应用', to: '/user/oauth-grants', icon: 'mdi-shield-account-outline' },
   { title: '换绑邮箱', to: '/user/email', icon: 'mdi-email-sync-outline' },
   { title: '重置密码', to: '/user/retrieve', icon: 'mdi-lock-reset' },
 ]

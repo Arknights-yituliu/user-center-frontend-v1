@@ -37,12 +37,22 @@ const router = createRouter({
       },
     },
     {
-      // OAuth 客户端自助管理：开发者维护自己名下的 OAuth 客户端（/oauth2/client/**），需登录
+      // OAuth 客户端自助管理：开发者维护自己名下的 OAuth 客户端（/user/oauth/client/**），需登录
       path: '/user/oauth-clients',
       name: 'OAUTH_CLIENTS',
       component: () => import('../pages/account/oauth-clients.vue'),
       meta: {
         title: '客户端管理',
+        requiresAuth: true,
+      },
+    },
+    {
+      // 我的授权应用：查看授权过的第三方应用并按应用撤销（/user/oauth/grants），需登录
+      path: '/user/oauth-grants',
+      name: 'OAUTH_GRANTS',
+      component: () => import('../pages/account/oauth-grants.vue'),
+      meta: {
+        title: '我的授权应用',
         requiresAuth: true,
       },
     },

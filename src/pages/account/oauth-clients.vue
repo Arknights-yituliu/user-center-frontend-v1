@@ -593,6 +593,20 @@ function openIntegrationGuide(client: OAuthClientVO): void {
               <span class="detail-value">PKCE S256 · 授权确认</span>
             </div>
             <div class="detail-row">
+              <span class="detail-label">直连认证</span>
+              <span class="detail-value">
+                <v-chip
+                  v-if="client.directAuthEnabled"
+                  size="x-small"
+                  color="primary"
+                  variant="tonal"
+                >
+                  已开通
+                </v-chip>
+                <v-chip v-else size="x-small" variant="tonal">未开通</v-chip>
+              </span>
+            </div>
+            <div class="detail-row">
               <span class="detail-label">创建时间</span>
               <span class="detail-value">{{ client.createTime }}</span>
             </div>

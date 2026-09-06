@@ -40,7 +40,7 @@ const errorCodes = [
   ['90006', 'grant type 未登记', '检查客户端授权类型配置'],
   ['90007', '客户端密钥校验失败', '检查密钥是否缺失、错误或已经轮换'],
   ['90008', 'PKCE 校验失败', '检查本次授权保存的 code_verifier'],
-  ['90009', '令牌无效、过期或已使用', '清除令牌并重新授权'],
+  ['90009', '令牌无效或已过期（含 refresh token 已被吊销）', '清除令牌并重新授权'],
   ['90013', '客户端待审批或已被管理员封禁', '联系管理员完成审批或解除封禁'],
 ]
 
@@ -55,7 +55,7 @@ const checklist = reactive([
   { text: '使用 client_secret_post，不使用 HTTP Basic Authentication', done: false },
   { text: '浏览器只持有业务系统自己的安全会话', done: false },
   { text: '业务成功与否按响应体 code 判断', done: false },
-  { text: '刷新成功后原子替换 access token 与 refresh token', done: false },
+  { text: '刷新成功后更新本地 access token；refresh token 固定复用，无需替换', done: false },
   { text: '密钥轮换后所有后端实例同步切换到新密钥', done: false },
 ])
 
@@ -174,6 +174,17 @@ const tokenResponse = `{
     "expires_in": 7200,
     "refresh_token": "refresh_token_value",
     "scope": "user.read"
+  }
+}`
+
+// 刷新令牌成功响应：仅返回新的 access token，refresh_token 与 scope 未变均不返回
+const refreshResponse = `{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "access_token": "access_token_value_2",
+    "token_type": "Bearer",
+    "expires_in": 7200
   }
 }`
 
@@ -674,8 +685,9 @@ onBeforeUnmount(() => observer?.disconnect())
             <pre><code>{{ tokenResponse }}</code></pre>
           </div>
           <p>
-            只有登记了 refresh_token grant 才会签发 refresh
-            token。授权码只能成功兑换一次；随后立即删除本次 state 和 code_verifier。
+            只有登记了 <code>refresh_token</code> grant 才会签发 refresh token；否则响应体不包含
+            <code>refresh_token</code> 字段（<code>access_token</code>、<code>token_type</code>、
+            <code>expires_in</code> 照常返回）。授权码只能成功兑换一次；随后立即删除本次 state 和 code_verifier。
           </p>
         </section>
 
@@ -755,7 +767,7 @@ onBeforeUnmount(() => observer?.disconnect())
               <h3>刷新令牌</h3>
               <div class="code-example">
                 <div class="code-toolbar">
-                  <span>HTTP · 一次性轮换</span
+                  <span>HTTP · 固定凭证刷新</span
                   ><v-btn
                     icon="mdi-content-copy"
                     variant="text"
@@ -786,14 +798,29 @@ onBeforeUnmount(() => observer?.disconnect())
               </div>
             </div>
           </div>
+          <div class="code-example">
+            <div class="code-toolbar">
+              <span>JSON · 刷新响应</span
+              ><v-btn
+                icon="mdi-content-copy"
+                variant="text"
+                size="x-small"
+                aria-label="复制刷新响应"
+                title="复制响应"
+                @click="copyText(refreshResponse, '刷新响应')"
+              ></v-btn>
+            </div>
+            <pre><code>{{ refreshResponse }}</code></pre>
+          </div>
+          <p>
+            刷新成功仅返回新的 access token；<code>refresh_token</code> 未变、<code>scope</code> 未变，均不返回。
+          </p>
           <ul class="plain-list">
-            <li>
-              刷新成功后原子保存新的 access token 和 refresh token，旧 refresh token 立即失效。
-            </li>
-            <li>不要并发刷新；相同 refresh token 最多一个请求成功。</li>
-            <li>刷新返回 90009 时清除令牌并让用户重新授权。</li>
+            <li>刷新成功后更新本地 access token；refresh token 为固定凭证，原值复用无需替换。</li>
+            <li>默认 90 天有效，有效期内可反复刷新，服务端不删除、不换发。</li>
+            <li>刷新返回 90009 表示 refresh token 已过期或被吊销，清除令牌并让用户重新授权。</li>
             <li>密钥轮换后，所有后端实例必须立即使用新密钥。</li>
-            <li>吊销 refresh token 时，关联的 access token 同时失效；吊销接口幂等。</li>
+            <li>吊销 refresh token 时，它派生的 access token（同一客户端名下）会被级联吊销；吊销接口幂等。</li>
           </ul>
         </section>
 

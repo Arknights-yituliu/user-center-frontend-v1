@@ -31,7 +31,7 @@ const flowSteps = [
   ['接收授权回调', 'UserCenter 携带 code、state 跳回登记地址'],
   ['校验并兑换令牌', '先校验 state，再调用 POST /oauth2/token'],
   ['获取用户信息', '携带 access_token 调用 GET /oauth2/userinfo'],
-  ['按需刷新', 'access_token 到期后使用 refresh_token 轮换'],
+  ['按需刷新', 'access_token 到期后用固定 refresh_token 换取新令牌'],
   ['退出并吊销', '退出登录时调用 POST /oauth2/revoke'],
 ]
 
@@ -43,7 +43,7 @@ const errorCodes = [
   ['90005', '授权码已使用', '重新授权，不要重试旧 code'],
   ['90006', 'grant type 未登记', '检查客户端授权类型配置'],
   ['90008', 'PKCE 校验失败', '检查本次请求保存的 code_verifier'],
-  ['90009', '令牌无效、过期或已使用', '清除令牌并重新授权'],
+  ['90009', '令牌无效或已过期（含 refresh token 已被吊销）', '清除令牌并重新授权'],
   ['90013', '客户端待审批或已被管理员封禁', '联系管理员完成审批或解除封禁'],
 ]
 
@@ -54,7 +54,7 @@ const checklist = reactive([
   { text: '授权和换码请求使用完全相同的 redirect_uri', done: false },
   { text: '表单请求使用 application/x-www-form-urlencoded', done: false },
   { text: '同时检查 HTTP 状态码和响应体中的 code', done: false },
-  { text: '刷新成功后原子替换 access token 与 refresh token', done: false },
+  { text: '刷新成功后更新本地 access token；refresh token 固定复用，无需替换', done: false },
   { text: 'URL、日志、监控和错误上报不记录令牌或 code_verifier', done: false },
 ])
 
@@ -185,6 +185,17 @@ const tokenResponse = `{
     "expires_in": 7200,
     "refresh_token": "refresh_token_value",
     "scope": "user.read"
+  }
+}`
+
+// 刷新令牌成功响应：仅返回新的 access token，refresh_token 与 scope 未变均不返回
+const refreshResponse = `{
+  "code": 200,
+  "msg": "操作成功",
+  "data": {
+    "access_token": "access_token_value_2",
+    "token_type": "Bearer",
+    "expires_in": 7200
   }
 }`
 
@@ -409,7 +420,7 @@ onBeforeUnmount(() => observer?.disconnect())
             </div>
             <div>
               <v-icon icon="mdi-check-circle" color="success"></v-icon
-              ><span>应用 Origin 已加入服务端 CORS 白名单</span>
+              ><span>应用 Origin 已登记到 <code>oauth_client_origin</code> 并通过管理员审核</span>
             </div>
           </div>
           <div class="callout warning">
@@ -649,8 +660,9 @@ onBeforeUnmount(() => observer?.disconnect())
             <pre><code>{{ tokenResponse }}</code></pre>
           </div>
           <p>
-            只有客户端登记了 <code>refresh_token</code> grant 时才会签发 refresh token，否则该字段为
-            <code>null</code>。授权码只能使用一次，成功或失败后都不要记录授权码和
+            只有客户端登记了 <code>refresh_token</code> grant 时才会签发 refresh token；否则响应体不包含
+            <code>refresh_token</code> 字段（<code>access_token</code>、<code>token_type</code>、
+            <code>expires_in</code> 照常返回）。授权码只能使用一次，成功或失败后都不要记录授权码和
             <code>code_verifier</code>。
           </p>
         </section>
@@ -743,26 +755,43 @@ onBeforeUnmount(() => observer?.disconnect())
             </div>
             <pre><code>{{ refreshRequest }}</code></pre>
           </div>
+          <div class="code-example">
+            <div class="code-toolbar">
+              <span>JSON · 刷新响应</span
+              ><v-btn
+                icon="mdi-content-copy"
+                variant="text"
+                size="x-small"
+                aria-label="复制刷新响应"
+                title="复制响应"
+                @click="copyText(refreshResponse, '刷新响应')"
+              ></v-btn>
+            </div>
+            <pre><code>{{ refreshResponse }}</code></pre>
+          </div>
+          <p>
+            刷新成功仅返回新的 access token；<code>refresh_token</code> 未变、<code>scope</code> 未变，均不返回。
+          </p>
           <div class="rotation-flow">
             <div>
               <span>1</span>
-              <p>只发送当前 refresh token</p>
+              <p>发送当前有效的 refresh token</p>
             </div>
             <v-icon icon="mdi-arrow-right"></v-icon>
             <div>
               <span>2</span>
-              <p>保存响应中的新令牌对</p>
+              <p>校验通过后签发新的 access token</p>
             </div>
             <v-icon icon="mdi-arrow-right"></v-icon>
             <div>
               <span>3</span>
-              <p>立即废弃旧 refresh token</p>
+              <p>refresh token 继续复用</p>
             </div>
           </div>
           <ul class="plain-list">
-            <li>refresh token 一次性轮换，相同令牌最多一个请求成功。</li>
-            <li>不要并发刷新；保存新 access token 与 refresh token 时应原子更新。</li>
-            <li>返回 <code>90009</code> 时清除本地令牌并重新发起授权。</li>
+            <li>refresh token 为固定凭证，默认 90 天有效，有效期内可反复刷新，服务端不删除、不换发。</li>
+            <li>每次刷新只签发新的 access token，无需更新 refresh token。</li>
+            <li>返回 <code>90009</code> 表示 refresh token 已过期或被吊销，清除本地令牌并重新发起授权。</li>
             <li>公共客户端刷新时同样不得提交 <code>client_secret</code>。</li>
           </ul>
         </section>
@@ -791,8 +820,8 @@ onBeforeUnmount(() => observer?.disconnect())
           </div>
           <p>
             <code>token</code> 可以是 access token 或 refresh token。吊销 refresh token
-            时，与其关联的 access token
-            会同时失效。接口是幂等的：令牌不存在、已失效或不属于当前客户端时仍返回成功。
+            时，它派生的 access token（同一客户端名下）会被级联吊销。接口是幂等的：令牌
+            不存在、已失效或不属于当前客户端时仍返回成功。
           </p>
           <div class="response-inline">
             <code>{ "code": 200, "msg": "操作成功", "data": null }</code>
