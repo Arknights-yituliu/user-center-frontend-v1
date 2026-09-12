@@ -106,13 +106,12 @@ function backToLogin() {
 </script>
 
 <template>
-  <div class="tool-page">
-    <v-card class="tool-panel m-a" width="95%" rounded="4" elevation="0" border>
+  <div class="login-page">
+    <v-card class="login-card m-a" width="95%" rounded="4" elevation="0" border>
       <!-- 标题区 -->
-      <div class="tool-header">
-        <p class="eyebrow">ACCOUNT RECOVERY</p>
-        <div class="tool-title">找回密码</div>
-        <div class="tool-sub">通过绑定邮箱验证码重置密码。整个过程不会影响其他账号。</div>
+      <div class="login-header">
+        <div class="login-title">找回密码</div>
+        <div class="login-sub">通过绑定邮箱验证码重置密码</div>
       </div>
 
       <v-card-text>
@@ -244,7 +243,7 @@ function backToLogin() {
           </v-stepper-window>
         </v-stepper>
 
-        <v-card title="你需要知道" color="primary" variant="tonal" class="m-12-4 tool-note">
+        <v-card title="温馨提示" color="primary" variant="tonal" class="m-12-4">
           <v-card-text>
             <p>
               验证码将发送到账号绑定的邮箱，5 分钟内有效、一次性使用。
@@ -260,102 +259,49 @@ function backToLogin() {
 </template>
 
 <style scoped>
-.tool-page {
-  display: flex;
-  justify-content: center;
-  padding: 70px 24px 90px;
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    min-height: 0;
+    flex: 1;
 }
 
-.tool-panel {
-  max-width: 720px;
-  border: 1px solid var(--site-ink) !important;
-  border-radius: 0 !important;
-  background: var(--site-surface) !important;
-  box-shadow: 14px 14px 0 var(--site-accent) !important;
-  overflow: hidden;
+.login-card {
+    border-radius: 4px;
+    overflow: hidden;
 }
 
-.tool-header {
-  padding: 34px 38px 28px;
-  border-bottom: 1px solid var(--site-line);
+/* 输入框与字段标签限宽居中，避免卡片变宽后输入框过长 */
+.login-card .v-input,
+.login-card .m-0-4 {
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-.tool-title {
-  margin-top: 12px;
-  color: var(--site-ink);
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.05em;
+/* 标题区 */
+.login-header {
+    padding: 28px 24px 20px;
+    text-align: center;
 }
 
-.tool-sub {
-  max-width: 480px;
-  margin-top: 9px;
-  color: var(--site-muted);
-  font-size: 14px;
-  line-height: 1.7;
+.login-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #1d2129;
 }
 
-.tool-panel :deep(.v-card-text) {
-  padding: 30px 38px 38px;
+.login-sub {
+    font-size: 13px;
+    color: #86909c;
 }
 
-.tool-panel :deep(.v-field) {
-  border-radius: 0;
-  background: transparent;
-}
-
-.tool-panel .v-input,
-.tool-panel .m-0-4 {
-  max-width: 520px;
-  margin-right: auto;
-  margin-left: auto;
-}
-
-.tool-panel .m-0-4 {
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.tool-panel .step-btn {
-  width: 220px;
-  border-radius: 0;
-}
-
-.tool-note {
-  border: 1px solid var(--site-line) !important;
-  border-radius: 0 !important;
-  background: var(--site-accent-soft) !important;
-}
-
-.tool-note :deep(.v-card-title) {
-  padding: 16px 18px 0;
-  color: var(--site-ink);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.tool-note :deep(.v-card-text) {
-  padding: 10px 18px 16px;
-  color: var(--site-ink);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-@media (max-width: 520px) {
-  .tool-page {
-    padding: 44px 16px 60px;
-  }
-
-  .tool-header,
-  .tool-panel :deep(.v-card-text) {
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
-  .tool-panel {
-    box-shadow: 8px 8px 0 var(--site-accent) !important;
-  }
+/* 步骤按钮 */
+.step-btn {
+    width: 200px;
+    border-radius: 4px;
 }
 </style>

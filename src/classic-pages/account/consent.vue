@@ -95,10 +95,12 @@ onMounted(() => {
 
 <template>
   <div class="consent-page">
+    <!-- 渐变背景层 -->
+    <div class="consent-bg"></div>
+
     <v-card class="consent-card m-a" max-width="480" width="100%">
       <!-- 标题区 -->
       <div class="consent-header">
-        <p class="consent-kicker">SECURE CONNECTION</p>
         <div class="consent-title">授权确认</div>
         <div class="consent-sub" v-if="consentInfo">「{{ consentInfo.clientName }}」申请访问你的一图流账号</div>
       </div>
@@ -178,115 +180,74 @@ onMounted(() => {
 
 <style scoped>
 .consent-page {
-  min-height: calc(100vh - 79px);
+  position: relative;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 56px 24px 80px;
+  padding: 24px;
+}
+
+/* 渐变背景层 */
+.consent-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
+  z-index: 0;
+}
+
+[data-theme="dark"] .consent-bg {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
 .consent-card {
-  border: 1px solid var(--site-ink) !important;
-  border-radius: 0 !important;
-  background: var(--site-surface) !important;
-  box-shadow: 14px 14px 0 var(--site-accent) !important;
+  position: relative;
+  z-index: 1;
+  border-radius: 4px;
   overflow: hidden;
 }
 
 /* 标题区 */
 .consent-header {
-  padding: 34px 34px 26px;
-  border-bottom: 1px solid var(--site-line);
-  text-align: left;
-}
-
-.consent-kicker {
-  margin: 0 0 10px;
-  color: var(--site-accent);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
+  padding: 28px 24px 20px;
+  text-align: center;
 }
 
 .consent-title {
-  color: var(--site-ink);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.05em;
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 
 .consent-sub {
-  margin-top: 8px;
-  color: var(--site-muted);
   font-size: 13px;
-  line-height: 1.6;
-}
-
-.consent-card :deep(.v-card-text) {
-  padding: 28px 34px 34px;
-}
-
-.consent-card :deep(.v-field) {
-  border-radius: 0;
-  background: transparent;
-}
-
-.consent-card :deep(.v-label),
-.consent-card .m-0-4 {
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 650;
+  opacity: 0.6;
 }
 
 /* 权限列表间距 */
 .consent-list {
-  border: 1px solid var(--site-line) !important;
-  border-radius: 0 !important;
-  background: transparent !important;
+  border-radius: 8px;
 }
 
-/* 确认按钮 */
+/* 确认按钮（上下排列） */
 .consent-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   margin: 16px 0;
 }
 
 .consent-btn {
-  min-width: 120px;
-  border-radius: 0;
+  width: 220px;
+  border-radius: 4px;
 }
 
 /* 底部安全提示 */
 .consent-tip {
   font-size: 12px;
-  color: var(--site-muted);
+  opacity: 0.5;
   text-align: center;
   margin: 0 8px 8px;
-}
-
-@media (max-width: 520px) {
-  .consent-page {
-    padding: 42px 16px 60px;
-  }
-
-  .consent-header,
-  .consent-card :deep(.v-card-text) {
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
-  .consent-card {
-    box-shadow: 8px 8px 0 var(--site-accent) !important;
-  }
-
-  .consent-actions {
-    flex-direction: column-reverse;
-  }
-
-  .consent-btn {
-    width: 100%;
-  }
 }
 </style>

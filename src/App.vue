@@ -2,76 +2,23 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { getUcToken, logoutUcSession } from './api/uc/uc-api'
-import { getThemeMode, setThemeMode, type ThemeMode } from './plugins/vuetify/vuetify'
-
-/** 侧边导航项 */
-interface NavItem {
-  /** 导航标题 */
-  title: string
-  /** 目标路由路径 */
-  to: string
-  /** 前置图标（mdi 图标名） */
-  icon: string
-}
-
-/** 导航分组：账号中心 */
-const accountNav: NavItem[] = [
-  { title: '用户信息', to: '/user/profile', icon: 'mdi-account-outline' },
-  { title: '我的授权应用', to: '/user/oauth-grants', icon: 'mdi-shield-account-outline' },
-  { title: '换绑邮箱', to: '/user/email', icon: 'mdi-email-sync-outline' },
-  { title: '重置密码', to: '/user/retrieve', icon: 'mdi-lock-reset' },
-]
-
-/** 导航分组：开发者 */
-const devNav: NavItem[] = [
-  { title: '客户端管理', to: '/user/oauth-clients', icon: 'mdi-api' },
-  { title: '无后端 Web 授权', to: '/user/oauth-guide', icon: 'mdi-web' },
-  { title: '加密客户端授权', to: '/user/oauth-server-guide', icon: 'mdi-server-security' },
-  { title: 'OAuth 用户配置', to: '/user/oauth-config-guide', icon: 'mdi-cloud-sync-outline' },
-]
+import ClassicShell from './components/ClassicShell.vue'
 
 const route = useRoute()
 const router = useRouter()
-
-/** 登录状态（token 存 localStorage 非响应式，路由变化时重新读取） */
 const loggedIn = ref(!!getUcToken())
-/** 移动端侧边导航显示状态 */
-const mobileNavOpen = ref(false)
 
-/** 当前页面是否隐藏侧边栏（登录/注册/授权类全屏页面，meta.hideSidebar=true） */
-const hideSidebar = computed(() => !!route.meta.hideSidebar)
+const hideNavigation = computed(() => !!route.meta.hideSidebar)
+const classicMode = computed(() => !!route.meta.classicShell)
+const isLanding = computed(() => route.name === 'LANDING')
 
 watch(
   () => route.fullPath,
   () => {
     loggedIn.value = !!getUcToken()
-    mobileNavOpen.value = false
   },
 )
 
-/**
- * 判断导航项是否为当前页
- * @param to 导航目标路径
- */
-function isActive(to: string): boolean {
-  return route.path === to
-}
-
-/** 当前主题模式（蓝色 light / 橙色 orange） */
-const themeMode = ref<ThemeMode>(getThemeMode())
-
-/**
- * 切换主题模式并持久化
- * @param mode 目标主题模式
- */
-function changeTheme(mode: ThemeMode): void {
-  themeMode.value = mode
-  setThemeMode(mode)
-}
-
-/**
- * 退出登录：调用 UC 登出并清除本地会话，然后跳转登录页
- */
 async function handleLogout(): Promise<void> {
   await logoutUcSession()
   router.push({ name: 'LOGIN' })
@@ -80,312 +27,217 @@ async function handleLogout(): Promise<void> {
 
 <template>
   <v-app>
-    <div class="app-layout">
-      <!-- 顶栏：横跨整个屏幕 -->
-      <header class="app-header">
-        <div class="header-left">
-          <v-btn
-            v-if="!hideSidebar"
-            class="mobile-nav-toggle"
-            variant="text"
-            :icon="mobileNavOpen ? 'mdi-close' : 'mdi-menu'"
-            :aria-label="mobileNavOpen ? '关闭导航菜单' : '打开导航菜单'"
-            @click="mobileNavOpen = !mobileNavOpen"
-          ></v-btn>
-          <RouterLink to="/" class="header-brand">
-            <!-- 品牌 Logo 图片 -->
-            <img class="brand-logo" src="/logo.png" alt="一图流用户中心" width="24" height="24" />
-            <span class="brand-text">一图流用户中心</span>
+    <ClassicShell v-if="classicMode" />
+    <div v-else class="site-shell">
+      <header v-if="!isLanding" class="site-header">
+        <div class="header-inner">
+          <RouterLink to="/" class="brand">
+            <span class="brand-mark">
+              <img src="/logo.png" alt="" width="30" height="30" />
+            </span>
+            <span class="brand-copy">
+              <strong>酸橙云</strong>
+              <small>YITULIU ACCOUNT</small>
+            </span>
           </RouterLink>
-        </div>
-        <div class="header-actions">
-          <!-- 主题切换菜单（蓝色 / 橙色） -->
-          <v-menu location="bottom end">
-            <template v-slot:activator="{ props }">
-              <v-btn
-                v-bind="props"
-                variant="text"
-                icon="mdi-palette-outline"
-                class="header-btn"
-                aria-label="切换主题"
-              ></v-btn>
-            </template>
-            <v-list density="compact" min-width="160">
-              <v-list-item
-                :active="themeMode === 'light'"
-                color="primary"
-                prepend-icon="mdi-palette-swatch"
-                title="蓝色主题"
-                @click="changeTheme('light')"
-              ></v-list-item>
-              <v-list-item
-                :active="themeMode === 'orange'"
-                color="primary"
-                prepend-icon="mdi-palette-swatch"
-                title="橙色主题"
-                @click="changeTheme('orange')"
-              ></v-list-item>
-            </v-list>
-          </v-menu>
 
-          <template v-if="loggedIn">
-            <v-btn variant="text" color="primary" to="/user/profile" class="header-btn"
-              >个人中心</v-btn
-            >
-            <v-btn variant="text" color="default" class="header-btn" @click="handleLogout"
-              >退出登录</v-btn
-            >
-          </template>
-          <v-btn v-else variant="text" color="primary" to="/account/login" class="header-btn"
-            >登录</v-btn
-          >
+          <div class="header-actions">
+            <template v-if="loggedIn">
+              <RouterLink v-if="hideNavigation" to="/home" class="header-user">用户中心</RouterLink>
+              <button class="logout-button" type="button" aria-label="退出登录" @click="handleLogout">
+                <v-icon icon="mdi-logout-variant"></v-icon>
+              </button>
+            </template>
+            <RouterLink v-else to="/login" class="login-link">登录</RouterLink>
+          </div>
         </div>
       </header>
 
-      <!-- 侧边导航栏 + 主内容区（顶栏下方）；登录/注册/授权类页面隐藏侧边栏 -->
-      <div class="app-body">
-        <button
-          v-if="!hideSidebar && mobileNavOpen"
-          class="sidebar-backdrop"
-          type="button"
-          aria-label="关闭导航菜单"
-          @click="mobileNavOpen = false"
-        ></button>
-        <aside v-if="!hideSidebar" class="app-sidebar" :class="{ 'mobile-open': mobileNavOpen }">
-          <nav class="sidebar-nav">
-            <div class="nav-group-title">账号中心</div>
-            <RouterLink
-              v-for="item in accountNav"
-              :key="item.to"
-              :to="item.to"
-              class="nav-item"
-              :class="{ active: isActive(item.to) }"
-            >
-              <v-icon size="18" class="nav-icon">{{ item.icon }}</v-icon>
-              <span>{{ item.title }}</span>
-            </RouterLink>
-
-            <div class="nav-group-title">开发者</div>
-            <RouterLink
-              v-for="item in devNav"
-              :key="item.to"
-              :to="item.to"
-              class="nav-item"
-              :class="{ active: isActive(item.to) }"
-            >
-              <v-icon size="18" class="nav-icon">{{ item.icon }}</v-icon>
-              <span>{{ item.title }}</span>
-            </RouterLink>
-          </nav>
-        </aside>
-        <main class="app-main">
-          <RouterView />
-        </main>
-      </div>
+      <main class="site-main" :class="{ 'site-main-landing': isLanding }">
+        <RouterView />
+      </main>
     </div>
   </v-app>
 </template>
 
 <style>
-/* ===== 全局基础 ===== */
-html,
-body {
-  background-color: #f7f8fa;
-  min-height: 100%;
-}
-
-/* 全局字体：优先系统中文字体（腾讯云控制台风格） */
 :root {
+  --site-ink: #173a63;
+  --site-muted: #55758a;
+  --site-paper: #eaf7f7;
+  --site-surface: #fffdf6;
+  --site-line: #a9dde2;
+  --site-accent: #1976c5;
+  --site-accent-soft: #d5f2f3;
+  --site-green: #36bfc8;
+  --site-cyan: #5bc7d4;
+  --site-warm: #ffd23f;
+  --site-pink: #ef78a8;
+  --site-shadow: 0 18px 50px rgb(25 118 197 / 0.12);
   --v-theme-font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-  --v-theme-font-size: 14px;
+    'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
 }
 
-/* ===== 全局布局：顶栏（全屏宽）+ 侧边栏/主内容区 ===== */
-.app-layout {
-  display: flex;
-  flex-direction: column;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--site-paper);
+  color: var(--site-ink);
+  font-family: var(--v-theme-font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-shell {
   min-height: 100vh;
-  flex: 1;
+  background: var(--site-paper);
 }
 
-/* 顶栏 */
-.app-header {
-  height: 56px;
-  flex-shrink: 0;
+.site-header {
+  position: relative;
+  top: 0;
+  z-index: 30;
+  background: transparent;
+}
+
+.header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e6eb;
-  z-index: 10;
+  max-width: 1440px;
+  min-height: 72px;
+  margin: 0 auto;
+  padding: 0 32px;
 }
 
-.header-left {
-  display: flex;
+.brand {
+  display: inline-flex;
   align-items: center;
-}
-
-.mobile-nav-toggle {
-  display: none;
-}
-
-.header-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  color: inherit;
-}
-
-/* 品牌 Logo 容器（尺寸由 AppLogo 组件 size prop 控制） */
-.brand-logo {
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.brand-text {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1d2129;
+.brand-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--site-ink);
+  border-radius: 50%;
+  background: var(--site-accent);
 }
 
-.header-btn {
-  font-size: 14px;
+.brand-mark img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  filter: brightness(0) invert(1);
 }
 
-/* 侧边栏 */
-.app-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.app-sidebar {
-  width: 220px;
-  flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1px solid #e5e6eb;
-  padding: 12px 8px;
-}
-
-.sidebar-nav {
+.brand-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  line-height: 1;
 }
 
-/* 分组标题 */
-.nav-group-title {
-  font-size: 12px;
-  color: #86909c;
-  padding: 8px 12px 4px;
+.brand-copy strong {
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
 }
 
-/* 导航项 */
-.nav-item {
+.brand-copy small {
+  color: var(--site-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+
+.login-link,
+.header-user,
+.logout-button {
+  border: 0;
+  background: transparent;
+  color: var(--site-muted);
+  cursor: pointer;
+}
+
+.header-user:hover,
+.login-link:hover {
+  color: var(--site-ink);
+}
+
+.header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  font-size: 14px;
-  color: #4e5969;
-  text-decoration: none;
-  border-radius: 4px;
-  position: relative;
-  transition:
-    background-color 0.2s,
-    color 0.2s;
+  gap: 18px;
 }
 
-.nav-item:hover {
-  background-color: #f7f8fa;
-  color: #1d2129;
+.logout-button,
+.header-user {
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.nav-item.active {
-  background-color: rgb(var(--v-theme-primary) / 0.1);
-  color: rgb(var(--v-theme-primary));
-  font-weight: 500;
+.logout-button {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
 }
 
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 20%;
-  bottom: 20%;
-  width: 3px;
-  border-radius: 2px;
-  background-color: rgb(var(--v-theme-primary));
+.login-link {
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.nav-icon {
-  flex-shrink: 0;
+.site-main {
+  min-height: calc(100vh - 72px);
 }
 
-/* 主内容区 */
-.app-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  background-color: #f7f8fa;
-}
-
-.sidebar-backdrop {
-  display: none;
-}
-
-/* 登录/授权类全屏居中页面：在全局布局内用 flex 撑满主内容区，避免 min-height:100vh 导致溢出 */
-.login-page,
-.consent-page {
-  min-height: 0 !important;
-  flex: 1;
+.site-main-landing {
+  min-height: 100vh;
 }
 
 @media (max-width: 700px) {
-  .app-header {
-    padding: 0 12px;
+  .header-inner {
+    min-height: 62px;
+    padding: 0 16px;
   }
 
-  .mobile-nav-toggle {
-    display: inline-flex;
-    margin-right: 2px;
+  .header-actions {
+    gap: 6px;
   }
 
-  .brand-text {
-    font-size: 16px;
+  .site-main {
+    min-height: calc(100vh - 63px);
   }
 
-  .app-sidebar {
-    position: fixed;
-    z-index: 20;
-    top: 56px;
-    bottom: 0;
-    left: 0;
-    width: 220px;
-    transform: translateX(-100%);
-    box-shadow: 4px 0 12px rgb(0 0 0 / 0.12);
-    transition: transform 0.2s ease;
-  }
-
-  .app-sidebar.mobile-open {
-    transform: translateX(0);
-  }
-
-  .sidebar-backdrop {
-    position: fixed;
-    z-index: 19;
-    inset: 56px 0 0;
-    display: block;
-    border: 0;
-    background: rgb(0 0 0 / 0.3);
-  }
-
-  .app-main {
-    width: 100%;
+  .site-main-landing {
+    min-height: 100vh;
   }
 }
 </style>

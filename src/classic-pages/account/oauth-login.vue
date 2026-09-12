@@ -197,22 +197,9 @@ async function toLogin() {
 </script>
 
 <template>
-  <div class="auth-page">
-    <section class="auth-intro">
-      <div class="auth-intro-top">
-        <img src="/logo.png" alt="" width="40" height="40" />
-        <span>一图流 / ACCOUNT</span>
-      </div>
-      <div class="auth-intro-copy">
-        <p class="auth-kicker">SECURE ACCESS</p>
-        <h1>确认一下，<br /><em>再继续。</em></h1>
-        <p>这是一次第三方应用授权。重新登录可以确认是你本人在授权访问自己的账号。</p>
-      </div>
-      <div class="auth-intro-foot">
-        <span>AUTH</span>
-        <span>你的账号，由你决定</span>
-      </div>
-    </section>
+  <div class="login-page">
+    <!-- 渐变背景层 -->
+    <div class="login-bg"></div>
 
     <v-card class="login-card m-a" max-width="440" width="100%">
       <!-- 标题区 -->
@@ -317,7 +304,7 @@ async function toLogin() {
           <v-btn text="没有账号，去注册" color="primary" variant="text" @click="toRegister()"></v-btn>
         </div>
 
-        <v-card title="关于这次登录" color="primary" variant="tonal" class="m-12-4 account-note">
+        <v-card title="账号须知" color="primary" variant="tonal" class="m-12-4">
           <v-card-text>
             <p>
               使用密码登录时，如果账号绑定了邮箱，也可将邮箱作为账号进行登录。
@@ -339,217 +326,54 @@ async function toLogin() {
 </template>
 
 <style scoped>
-.auth-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-  gap: clamp(48px, 9vw, 150px);
-  align-items: center;
-  max-width: 1180px;
-  min-height: calc(100vh - 79px);
-  margin: 0 auto;
-  padding: 64px 42px;
+.login-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
 }
 
-.auth-intro {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 560px;
-  padding: 12px 0 0;
+/* 渐变背景层 */
+.login-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
+    z-index: 0;
 }
 
-.auth-intro-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--site-muted);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
-}
-
-.auth-intro-top img {
-  display: block;
-  width: 40px;
-  height: 40px;
-  padding: 5px;
-  border: 1px solid var(--site-ink);
-  border-radius: 50%;
-  background: var(--site-accent);
-  filter: brightness(0) invert(1);
-}
-
-.auth-intro-copy {
-  margin: auto 0;
-  padding: 80px 0;
-}
-
-.auth-kicker {
-  margin: 0;
-  color: var(--site-accent);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
-}
-
-.auth-intro h1 {
-  margin: 20px 0 0;
-  color: var(--site-ink);
-  font-size: clamp(52px, 7vw, 92px);
-  font-weight: 650;
-  letter-spacing: -0.065em;
-  line-height: 0.92;
-}
-
-.auth-intro h1 em {
-  color: var(--site-accent);
-  font-style: normal;
-}
-
-.auth-intro-copy > p:last-child {
-  max-width: 390px;
-  margin: 28px 0 0;
-  color: var(--site-muted);
-  font-size: 15px;
-  line-height: 1.8;
-}
-
-.auth-intro-foot {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 18px;
-  border-top: 1px solid var(--site-line);
-  color: var(--site-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+[data-theme="dark"] .login-bg {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
 .login-card {
-  border: 1px solid var(--site-ink) !important;
-  border-radius: 0 !important;
-  background: var(--site-surface) !important;
-  box-shadow: 14px 14px 0 var(--site-accent) !important;
-  overflow: hidden;
+    position: relative;
+    z-index: 1;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
+/* 标题区 */
 .login-header {
-  padding: 34px 34px 26px;
-  text-align: left;
+    padding: 28px 24px 20px;
+    text-align: center;
 }
 
 .login-title {
-  margin-bottom: 8px;
-  color: var(--site-ink);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
 }
 
 .login-sub {
-  max-width: 330px;
-  color: var(--site-muted);
-  font-size: 13px;
-  line-height: 1.65;
+    font-size: 13px;
+    opacity: 0.6;
 }
 
-.login-card :deep(.v-tabs) {
-  border-top: 1px solid var(--site-line);
-  border-bottom: 1px solid var(--site-line);
-}
-
-.login-card :deep(.v-tab) {
-  min-height: 48px;
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.login-card :deep(.v-tab--selected) {
-  color: var(--site-ink);
-}
-
-.login-card :deep(.v-card-text) {
-  padding: 28px 34px 34px;
-}
-
-.login-card :deep(.v-field) {
-  border-radius: 0;
-  background: transparent;
-}
-
-.login-card :deep(.v-label),
-.login-card .m-0-4 {
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
+/* 登录按钮 */
 .login-btn {
-  width: 100%;
-  border-radius: 0;
-}
-
-.account-note {
-  border: 1px solid var(--site-line) !important;
-  border-radius: 0 !important;
-  background: var(--site-accent-soft) !important;
-}
-
-.account-note :deep(.v-card-title) {
-  padding: 16px 18px 0;
-  color: var(--site-ink);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.account-note :deep(.v-card-text) {
-  padding: 10px 18px 16px;
-  color: var(--site-ink);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-@media (max-width: 800px) {
-  .auth-page {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    min-height: 0;
-    padding: 42px 24px 56px;
-  }
-
-  .auth-intro {
-    min-height: 0;
-  }
-
-  .auth-intro-copy {
-    padding: 58px 0 42px;
-  }
-
-  .auth-intro h1 {
-    font-size: 58px;
-  }
-}
-
-@media (max-width: 480px) {
-  .auth-page {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .auth-intro h1 {
-    font-size: 48px;
-  }
-
-  .login-header,
-  .login-card :deep(.v-card-text) {
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
-  .login-card {
-    box-shadow: 8px 8px 0 var(--site-accent) !important;
-  }
+    width: 200px;
+    border-radius: 8px;
 }
 </style>

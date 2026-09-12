@@ -26,6 +26,8 @@ const route = useRoute()
 
 /** OAuth 授权回跳地址：authorize 未登录时会 302 到本页并携带 ?redirect=<authorize完整地址>，登录成功后换取一次性票据并回跳继续授权 */
 const oauthRedirect = ref("")
+/** 普通站内登录成功后的回跳地址，由登录守卫通过 ?returnTo= 传入 */
+const returnTo = ref("")
 
 /**
  * 登录成功后若处于 OAuth 授权回跳流程：
@@ -56,6 +58,9 @@ async function redirectIfOAuth() {
 onMounted(() => {
     // 解析 OAuth 授权回跳参数（authorize 未登录时 302 带 ?redirect=<authorize地址> 跳到本页）
     oauthRedirect.value = new URLSearchParams(window.location.search).get("redirect") || ""
+    const candidate = new URLSearchParams(window.location.search).get("returnTo") || ""
+    // 只接受站内绝对路径，避免把登录页变成外部跳转入口
+    returnTo.value = candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : ""
     // 已有本地 UC 会话且处于 OAuth 回跳流程：直接用现有会话换票回跳，无需再次手动登录
     if (oauthRedirect.value && getUcToken()) {
         redirectIfOAuth()
@@ -136,9 +141,9 @@ function handleLoginSuccess(data) {
         }, 600)
         return
     }
-    createMessage({type: 'success', text: '登录成功，即将转跳到首页'})
+    createMessage({type: 'success', text: returnTo.value ? '登录成功，正在返回原页面' : '登录成功，即将转跳到首页'})
     setTimeout(() => {
-        window.location.href = '/'
+        window.location.href = returnTo.value || '/'
     }, 1500)
 }
 
@@ -194,15 +199,29 @@ async function toLogin() {
 </script>
 
 <template>
-  <div class="login-page">
-    <!-- 渐变背景层 -->
-    <div class="login-bg"></div>
+  <div class="auth-page">
+    <section class="auth-intro">
+      <div class="auth-intro-top">
+        <img src="/logo.png" alt="" width="40" height="40" />
+        <span>一图流 / ACCOUNT</span>
+      </div>
+      <div class="auth-intro-copy">
+        <p class="auth-kicker">ONE FLOW ACCOUNT</p>
+        <h1>把重要的，<br /><em>放在一起。</em></h1>
+        <p>一个账号，连接一图流相关服务。管理资料、保护账号，也让你的数据始终跟着你。</p>
+      </div>
+      <div class="auth-intro-foot">
+        <span>01</span>
+        <span>简洁 · 安全 · 属于你</span>
+      </div>
+    </section>
 
     <v-card class="login-card m-a" max-width="440" width="100%">
       <!-- 标题区 -->
       <div class="login-header">
-        <div class="login-title">一图流账号登录</div>
-        <div class="login-sub">使用统一用户中心（UserCenter）账号登录</div>
+        <div class="login-eyebrow">一图流账号中心</div>
+        <div class="login-title">登录一图流账号</div>
+        <div class="login-sub">管理你的账号信息，并在支持的一图流服务中使用同一个账号</div>
       </div>
 
       <v-tabs v-model="inputContent.accountType" bg-color="primary" grow>
@@ -294,19 +313,13 @@ async function toLogin() {
           <v-btn text="没有账号，去注册" color="primary" variant="text" @click="toRegister()"></v-btn>
         </div>
 
-        <v-card title="账号须知" color="primary" variant="tonal" class="m-12-4">
+        <v-card title="第一次来？" color="primary" variant="tonal" class="m-12-4 account-note">
           <v-card-text>
             <p>
-              使用密码登录时，如果账号绑定了邮箱，也可将邮箱作为账号进行登录。
+              这是用于一图流相关服务的账号，不是鹰角网络通行证或明日方舟游戏账号。还没有账号的话，可以直接注册一个。
             </p>
             <p>
-              *此账号为一图流账号，与鹰角网络通行证(明日方舟游戏账号)无关，仅为保存您的干员练度数据使用
-            </p>
-            <p>
-              *为了您的账号安全，注册时的密码不要与您其他重要账号的密码相同
-            </p>
-            <p>
-              *请妥善保管好您的官网token和森空岛token
+              如果你已经绑定邮箱，也可以直接使用邮箱作为账号登录。
             </p>
           </v-card-text>
         </v-card>
@@ -316,54 +329,233 @@ async function toLogin() {
 </template>
 
 <style scoped>
-.login-page {
-    position: relative;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+.auth-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  gap: clamp(48px, 9vw, 150px);
+  align-items: center;
+  max-width: 1180px;
+  min-height: calc(100vh - 79px);
+  margin: 0 auto;
+  padding: 64px 42px;
 }
 
-/* 渐变背景层 */
-.login-bg {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
-    z-index: 0;
+.auth-intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 560px;
+  padding: 12px 0 0;
 }
 
-[data-theme="dark"] .login-bg {
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+.auth-intro-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--site-muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+
+.auth-intro-top img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  padding: 5px;
+  border: 1px solid var(--site-ink);
+  border-radius: 50%;
+  background: var(--site-accent);
+  filter: brightness(0) invert(1);
+}
+
+.auth-intro-copy {
+  margin: auto 0;
+  padding: 80px 0;
+}
+
+.auth-kicker {
+  margin: 0;
+  color: var(--site-accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+}
+
+.auth-intro h1 {
+  margin: 20px 0 0;
+  color: var(--site-ink);
+  font-size: clamp(52px, 7vw, 92px);
+  font-weight: 650;
+  letter-spacing: -0.065em;
+  line-height: 0.92;
+}
+
+.auth-intro h1 em {
+  color: var(--site-accent);
+  font-style: normal;
+}
+
+.auth-intro-copy > p:last-child {
+  max-width: 390px;
+  margin: 28px 0 0;
+  color: var(--site-muted);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.auth-intro-foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 18px;
+  border-top: 1px solid var(--site-line);
+  color: var(--site-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .login-card {
-    position: relative;
-    z-index: 1;
-    border-radius: 4px;
-    overflow: hidden;
+  border: 1px solid var(--site-ink) !important;
+  border-radius: 0 !important;
+  background: var(--site-surface) !important;
+  box-shadow: 14px 14px 0 var(--site-accent) !important;
+  overflow: hidden;
 }
 
-/* 标题区 */
 .login-header {
-    padding: 28px 24px 20px;
-    text-align: center;
+  padding: 34px 34px 26px;
+  text-align: left;
 }
 
 .login-title {
-    font-size: 22px;
-    font-weight: 600;
-    margin-bottom: 6px;
+  margin-bottom: 8px;
+  color: var(--site-ink);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.login-eyebrow {
+  margin-bottom: 10px;
+  color: var(--site-accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.15em;
 }
 
 .login-sub {
-    font-size: 13px;
-    opacity: 0.6;
+  max-width: 330px;
+  color: var(--site-muted);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
-/* 登录按钮 */
+.login-card :deep(.v-tabs) {
+  border-top: 1px solid var(--site-line);
+  border-bottom: 1px solid var(--site-line);
+}
+
+.login-card :deep(.v-tab) {
+  min-height: 48px;
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-card :deep(.v-tab--selected) {
+  color: var(--site-ink);
+}
+
+.login-card :deep(.v-card-text) {
+  padding: 28px 34px 34px;
+}
+
+.login-card :deep(.v-field) {
+  border-radius: 0;
+  background: transparent;
+}
+
+.login-card :deep(.v-label),
+.login-card .m-0-4 {
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.login-card :deep(.v-field--focused) {
+  --v-field-border-opacity: 1;
+}
+
 .login-btn {
-    width: 200px;
-    border-radius: 8px;
+  width: 100%;
+  border-radius: 0;
+}
+
+.account-note {
+  border: 1px solid var(--site-line) !important;
+  border-radius: 0 !important;
+  background: var(--site-accent-soft) !important;
+}
+
+.account-note :deep(.v-card-title) {
+  padding: 16px 18px 0;
+  color: var(--site-ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.account-note :deep(.v-card-text) {
+  padding: 10px 18px 16px;
+  color: var(--site-ink);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.account-note p + p {
+  margin-top: 8px;
+}
+
+@media (max-width: 800px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    min-height: 0;
+    padding: 42px 24px 56px;
+  }
+
+  .auth-intro {
+    min-height: 0;
+  }
+
+  .auth-intro-copy {
+    padding: 58px 0 42px;
+  }
+
+  .auth-intro h1 {
+    font-size: 58px;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-page {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .auth-intro h1 {
+    font-size: 48px;
+  }
+
+  .login-header,
+  .login-card :deep(.v-card-text) {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .login-card {
+    box-shadow: 8px 8px 0 var(--site-accent) !important;
+  }
 }
 </style>

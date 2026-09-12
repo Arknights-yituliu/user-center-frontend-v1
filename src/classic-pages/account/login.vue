@@ -2,8 +2,8 @@
 import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
-import {useRouter} from "vue-router";
-import {setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
+import {useRoute, useRouter} from "vue-router";
+import {getUcToken, setUcSession, ucRequest} from "../../api/uc/uc-api";
 
 /** 登录表单：accountType=password 时用 账号(邮箱或用户名)+密码；accountType=email 时用 邮箱+验证码 */
 const inputContent = ref({
@@ -22,32 +22,22 @@ const sendCodeLoading = ref(false)
 const codeCountdown = ref(0)
 
 const router = useRouter()
+const route = useRoute()
 
-/** OAuth 授权回跳地址：authorize 未登录时会 302 到本页并携带 ?redirect=<authorize完整地址> */
+/** OAuth 授权回跳地址：authorize 未登录时会 302 到本页并携带 ?redirect=<authorize完整地址>，登录成功后换取一次性票据并回跳继续授权 */
 const oauthRedirect = ref("")
 
 /**
- * 本次登录返回的 UC token：
- * 仅保存在内存用于换取一次性票据，刻意不写入 localStorage，
- * 避免把 OAuth 授权流程的登录态污染到本机已登录的 UC 会话
- */
-let sessionToken = ''
-
-/**
  * 登录成功后若处于 OAuth 授权回跳流程：
- * 1. 用本次登录的内存 token 调 POST /oauth2/ticket 换取一次性票据
+ * 1. 用刚登录的会话 token 调 POST /oauth2/ticket 换取一次性票据
  * 2. 携带 uc_ticket 回跳 authorize（跨站票据方案，不依赖 Cookie，登录页与 UC 不同域名也可用）
- *
- * 与普通登录页 login.vue 的区别：不读取本地 UC_TOKEN 自动换票，
- * 即使本机已登录也要求用户重新输入账号密码，防止授权流程被本地会话"代确认"
  */
 async function redirectIfOAuth() {
-    if (!oauthRedirect.value || !sessionToken) {
+    if (!oauthRedirect.value || !getUcToken()) {
         return
     }
     try {
-        // 显式传入本次登录 token（ucRequest 中 token 参数优先级高于本地 localStorage）
-        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket", token: sessionToken})
+        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket"})
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
@@ -66,7 +56,10 @@ async function redirectIfOAuth() {
 onMounted(() => {
     // 解析 OAuth 授权回跳参数（authorize 未登录时 302 带 ?redirect=<authorize地址> 跳到本页）
     oauthRedirect.value = new URLSearchParams(window.location.search).get("redirect") || ""
-    // 安全设计：本页刻意不读取本地 UC token 自动换票，要求用户重新登录
+    // 已有本地 UC 会话且处于 OAuth 回跳流程：直接用现有会话换票回跳，无需再次手动登录
+    if (oauthRedirect.value && getUcToken()) {
+        redirectIfOAuth()
+    }
 })
 
 /** 跳转注册页：处于 OAuth 回跳流程时携带 redirect，供注册成功后回跳授权 */
@@ -125,23 +118,27 @@ async function sendVerificationCode() {
 }
 
 /**
- * 登录成功后的统一处理：
- * - 本次登录 token 只存临时 key（UC_TMP_TOKEN），不写入正式会话 UC_TOKEN；授权完成回跳第三方前由授权确认页清除
- * - 处于 OAuth 授权回跳流程时换票回跳继续授权
- * - 非授权场景（直接访问本页）提示后转普通登录页
+ * 登录成功后的统一处理：保存 UC 会话并跳转
  * @param {{token:string, uid:string|number}} data UC 登录返回的 LoginVO
  */
 function handleLoginSuccess(data) {
-    sessionToken = (data && data.token) || ""
-    if (oauthRedirect.value && sessionToken) {
-        // 写入临时 token，供授权确认页读取（授权完成后清除）
-        setUcTmpToken(sessionToken)
+    setUcSession(data.token, data.uid)
+    // 处于 OAuth 授权回跳流程时，直接换票回跳继续授权，不走普通跳转
+    if (oauthRedirect.value) {
         redirectIfOAuth()
         return
     }
-    createMessage({text: "本页为第三方授权专用登录页，请从第三方网站重新发起授权", type: "warning"})
+    if (route.name === 'ACCOUNT_HOME' || route.path === '/account/home') {
+        createMessage({type: 'success', text: '登录成功'})
+        // 站内会话（OAUTH_TOKEN）由 /account/home 解析 OAuth 回调 ?token= 时建立，此处无需处理
+        setTimeout(() => {
+            window.location.reload()
+        }, 600)
+        return
+    }
+    createMessage({type: 'success', text: '登录成功，即将转跳到首页'})
     setTimeout(() => {
-        router.replace({name: "LOGIN"})
+        window.location.href = '/classic/'
     }, 1500)
 }
 
@@ -197,36 +194,16 @@ async function toLogin() {
 </script>
 
 <template>
-  <div class="auth-page">
-    <section class="auth-intro">
-      <div class="auth-intro-top">
-        <img src="/logo.png" alt="" width="40" height="40" />
-        <span>一图流 / ACCOUNT</span>
-      </div>
-      <div class="auth-intro-copy">
-        <p class="auth-kicker">SECURE ACCESS</p>
-        <h1>确认一下，<br /><em>再继续。</em></h1>
-        <p>这是一次第三方应用授权。重新登录可以确认是你本人在授权访问自己的账号。</p>
-      </div>
-      <div class="auth-intro-foot">
-        <span>AUTH</span>
-        <span>你的账号，由你决定</span>
-      </div>
-    </section>
+  <div class="login-page">
+    <!-- 渐变背景层 -->
+    <div class="login-bg"></div>
 
     <v-card class="login-card m-a" max-width="440" width="100%">
       <!-- 标题区 -->
       <div class="login-header">
         <div class="login-title">一图流账号登录</div>
-        <div class="login-sub">第三方授权登录，使用统一用户中心（UserCenter）账号</div>
+        <div class="login-sub">使用统一用户中心（UserCenter）账号登录</div>
       </div>
-
-      <!-- 安全提示：区别于普通登录页，本页不使用已登录会话 -->
-      <v-card title="安全提示" color="warning" variant="tonal" class="mx-4 mb-2">
-        <v-card-text>
-          授权流程为保护您的账号安全，不会使用本机已登录的会话，请重新输入账号密码登录。
-        </v-card-text>
-      </v-card>
 
       <v-tabs v-model="inputContent.accountType" bg-color="primary" grow>
         <v-tab value="password">密码登录</v-tab>
@@ -317,7 +294,7 @@ async function toLogin() {
           <v-btn text="没有账号，去注册" color="primary" variant="text" @click="toRegister()"></v-btn>
         </div>
 
-        <v-card title="关于这次登录" color="primary" variant="tonal" class="m-12-4 account-note">
+        <v-card title="账号须知" color="primary" variant="tonal" class="m-12-4">
           <v-card-text>
             <p>
               使用密码登录时，如果账号绑定了邮箱，也可将邮箱作为账号进行登录。
@@ -339,217 +316,54 @@ async function toLogin() {
 </template>
 
 <style scoped>
-.auth-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
-  gap: clamp(48px, 9vw, 150px);
-  align-items: center;
-  max-width: 1180px;
-  min-height: calc(100vh - 79px);
-  margin: 0 auto;
-  padding: 64px 42px;
+.login-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
 }
 
-.auth-intro {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 560px;
-  padding: 12px 0 0;
+/* 渐变背景层 */
+.login-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgb(var(--v-theme-primary) / 0.08) 100%);
+    z-index: 0;
 }
 
-.auth-intro-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: var(--site-muted);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
-}
-
-.auth-intro-top img {
-  display: block;
-  width: 40px;
-  height: 40px;
-  padding: 5px;
-  border: 1px solid var(--site-ink);
-  border-radius: 50%;
-  background: var(--site-accent);
-  filter: brightness(0) invert(1);
-}
-
-.auth-intro-copy {
-  margin: auto 0;
-  padding: 80px 0;
-}
-
-.auth-kicker {
-  margin: 0;
-  color: var(--site-accent);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
-}
-
-.auth-intro h1 {
-  margin: 20px 0 0;
-  color: var(--site-ink);
-  font-size: clamp(52px, 7vw, 92px);
-  font-weight: 650;
-  letter-spacing: -0.065em;
-  line-height: 0.92;
-}
-
-.auth-intro h1 em {
-  color: var(--site-accent);
-  font-style: normal;
-}
-
-.auth-intro-copy > p:last-child {
-  max-width: 390px;
-  margin: 28px 0 0;
-  color: var(--site-muted);
-  font-size: 15px;
-  line-height: 1.8;
-}
-
-.auth-intro-foot {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 18px;
-  border-top: 1px solid var(--site-line);
-  color: var(--site-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+[data-theme="dark"] .login-bg {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
 }
 
 .login-card {
-  border: 1px solid var(--site-ink) !important;
-  border-radius: 0 !important;
-  background: var(--site-surface) !important;
-  box-shadow: 14px 14px 0 var(--site-accent) !important;
-  overflow: hidden;
+    position: relative;
+    z-index: 1;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
+/* 标题区 */
 .login-header {
-  padding: 34px 34px 26px;
-  text-align: left;
+    padding: 28px 24px 20px;
+    text-align: center;
 }
 
 .login-title {
-  margin-bottom: 8px;
-  color: var(--site-ink);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 6px;
 }
 
 .login-sub {
-  max-width: 330px;
-  color: var(--site-muted);
-  font-size: 13px;
-  line-height: 1.65;
+    font-size: 13px;
+    opacity: 0.6;
 }
 
-.login-card :deep(.v-tabs) {
-  border-top: 1px solid var(--site-line);
-  border-bottom: 1px solid var(--site-line);
-}
-
-.login-card :deep(.v-tab) {
-  min-height: 48px;
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.login-card :deep(.v-tab--selected) {
-  color: var(--site-ink);
-}
-
-.login-card :deep(.v-card-text) {
-  padding: 28px 34px 34px;
-}
-
-.login-card :deep(.v-field) {
-  border-radius: 0;
-  background: transparent;
-}
-
-.login-card :deep(.v-label),
-.login-card .m-0-4 {
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
+/* 登录按钮 */
 .login-btn {
-  width: 100%;
-  border-radius: 0;
-}
-
-.account-note {
-  border: 1px solid var(--site-line) !important;
-  border-radius: 0 !important;
-  background: var(--site-accent-soft) !important;
-}
-
-.account-note :deep(.v-card-title) {
-  padding: 16px 18px 0;
-  color: var(--site-ink);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.account-note :deep(.v-card-text) {
-  padding: 10px 18px 16px;
-  color: var(--site-ink);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
-@media (max-width: 800px) {
-  .auth-page {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    min-height: 0;
-    padding: 42px 24px 56px;
-  }
-
-  .auth-intro {
-    min-height: 0;
-  }
-
-  .auth-intro-copy {
-    padding: 58px 0 42px;
-  }
-
-  .auth-intro h1 {
-    font-size: 58px;
-  }
-}
-
-@media (max-width: 480px) {
-  .auth-page {
-    padding-right: 16px;
-    padding-left: 16px;
-  }
-
-  .auth-intro h1 {
-    font-size: 48px;
-  }
-
-  .login-header,
-  .login-card :deep(.v-card-text) {
-    padding-right: 22px;
-    padding-left: 22px;
-  }
-
-  .login-card {
-    box-shadow: 8px 8px 0 var(--site-accent) !important;
-  }
+    width: 200px;
+    border-radius: 8px;
 }
 </style>
