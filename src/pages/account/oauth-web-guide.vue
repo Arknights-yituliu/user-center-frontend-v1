@@ -284,7 +284,7 @@ onBeforeUnmount(() => observer?.disconnect())
         <h1>无后端 Web 应用接入</h1>
         <p>使用 Authorization Code + PKCE S256 安全接入一图流用户中心</p>
       </div>
-      <v-btn to="/user/oauth-clients" variant="outlined" color="primary" prepend-icon="mdi-api">
+      <v-btn to="/developer?tab=clients" variant="outlined" color="primary" prepend-icon="mdi-api">
         客户端管理
       </v-btn>
     </header>

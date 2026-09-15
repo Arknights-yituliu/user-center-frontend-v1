@@ -272,7 +272,7 @@ onBeforeUnmount(() => observer?.disconnect())
         <h1>加密客户端 OAuth2 接入</h1>
         <p>适用于能够安全保存客户端密钥的后端服务或 BFF</p>
       </div>
-      <v-btn to="/user/oauth-clients" variant="outlined" color="primary" prepend-icon="mdi-api"
+      <v-btn to="/developer?tab=clients" variant="outlined" color="primary" prepend-icon="mdi-api"
         >客户端管理</v-btn
       >
     </header>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Citrus linework revised</title>
+  <desc id="desc">The original citrus linework mark refined with a hollow center, six extended bars, and a slight perspective tilt.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <g transform="rotate(-8 256 256) translate(256 256) skewX(-7) translate(-256 -256)">
+    <circle cx="256" cy="256" r="154" fill="none" stroke="#FFD23F" stroke-width="26"/>
+    <g fill="none" stroke="#FFD23F" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M256 256c-31-38-45-84-36-137"/>
+      <path d="M256 256c-31-38-45-84-36-137" transform="rotate(60 256 256)"/>
+      <path d="M256 256c-31-38-45-84-36-137" transform="rotate(120 256 256)"/>
+      <path d="M256 256c-31-38-45-84-36-137" transform="rotate(180 256 256)"/>
+      <path d="M256 256c-31-38-45-84-36-137" transform="rotate(240 256 256)"/>
+      <path d="M256 256c-31-38-45-84-36-137" transform="rotate(300 256 256)"/>
+    </g>
+    <circle cx="256" cy="256" r="20" fill="#1976C5" stroke="#FFD23F" stroke-width="12"/>
+  </g>
+</svg>

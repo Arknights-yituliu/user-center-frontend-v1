@@ -452,8 +452,9 @@ async function copyText(text: string, label: string): Promise<void> {
 /** 按客户端认证方式打开对应接入文档，并带入常用参数。 */
 function openIntegrationGuide(client: OAuthClientVO): void {
   router.push({
-    name: client.authMethod === 'client_secret_post' ? 'OAUTH_SERVER_GUIDE' : 'OAUTH_WEB_GUIDE',
+    name: 'DEVELOPER',
     query: {
+      tab: client.authMethod === 'client_secret_post' ? 'server' : 'web',
       clientId: client.clientId,
       clientName: client.clientName,
       redirectUri: client.redirectUris[0] || undefined,

@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  getUcToken,
   getUcUid,
   getUserProfile,
   logoutUcSession,
@@ -45,10 +44,6 @@ const editNicknameLoading = ref(false)
  * token 失效（80001/80002）时引导重新登录
  */
 onMounted(async () => {
-  if (import.meta.env.DEV && !getUcToken()) {
-    pageLoading.value = false
-    return
-  }
   try {
     const resp = await getUserProfile()
     if (resp.data) {

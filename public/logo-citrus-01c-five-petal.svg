@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Citrus five petal derivative</title>
+  <desc id="desc">A compact five-section citrus mark with broad curved petals.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <circle cx="256" cy="256" r="146" fill="none" stroke="#FFD23F" stroke-width="32"/>
+  <g fill="#FFD23F">
+    <path d="M256 256c-29-35-39-76-26-112 17-6 35-6 52 0 13 36 3 77-26 112Z"/>
+    <path d="M256 256c-29-35-39-76-26-112 17-6 35-6 52 0 13 36 3 77-26 112Z" transform="rotate(72 256 256)"/>
+    <path d="M256 256c-29-35-39-76-26-112 17-6 35-6 52 0 13 36 3 77-26 112Z" transform="rotate(144 256 256)"/>
+    <path d="M256 256c-29-35-39-76-26-112 17-6 35-6 52 0 13 36 3 77-26 112Z" transform="rotate(216 256 256)"/>
+    <path d="M256 256c-29-35-39-76-26-112 17-6 35-6 52 0 13 36 3 77-26 112Z" transform="rotate(288 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="25" fill="#1976C5" stroke="#FFD23F" stroke-width="11"/>
+</svg>

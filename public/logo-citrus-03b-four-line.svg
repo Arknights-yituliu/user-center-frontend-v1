@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Citrus four line derivative</title>
+  <desc id="desc">A four-section citrus line mark with larger, clearer radial strokes.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#FFD23F" stroke-width="24"/>
+  <g fill="none" stroke="#FFD23F" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M256 256c-35-38-48-81-34-124"/>
+    <path d="M256 256c-35-38-48-81-34-124" transform="rotate(90 256 256)"/>
+    <path d="M256 256c-35-38-48-81-34-124" transform="rotate(180 256 256)"/>
+    <path d="M256 256c-35-38-48-81-34-124" transform="rotate(270 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="23" fill="#1976C5" stroke="#FFD23F" stroke-width="12"/>
+</svg>

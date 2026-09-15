@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 860" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Line logo variants</title>
+  <desc id="desc">Five variants derived from the Cloud Line logo concept, using only the existing blue and yellow theme colors.</desc>
+  <rect width="1200" height="860" fill="#1976C5"/>
+  <text x="72" y="70" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="28" font-weight="700" letter-spacing="3">酸橙云 / CLOUD LINE VARIANTS</text>
+  <text x="72" y="106" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="16" opacity="0.82">SAME RIDGE · DIFFERENT RHYTHM</text>
+  <text x="1010" y="86" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="14">#1976C5</text>
+  <circle cx="990" cy="80" r="10" fill="#1976C5" stroke="#FFD23F" stroke-width="2"/>
+  <text x="1010" y="112" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="14">#FFD23F</text>
+  <circle cx="990" cy="106" r="10" fill="#FFD23F"/>
+
+  <g transform="translate(72 150)">
+    <rect width="320" height="280" rx="28" fill="#1976C5" stroke="#FFD23F" stroke-width="3"/>
+    <g transform="translate(31 14) scale(.50)">
+      <path d="M140 360h250c42 0 76-34 76-76s-34-76-76-76c-10 0-20 2-29 6-12-55-61-92-120-92-58 0-106 37-122 90-9-3-18-4-28-4-44 0-80 36-80 80s36 72 80 72h49" fill="none" stroke="#FFD23F" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="24" y="250" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" letter-spacing="1">01 · ROUNDED / 圆角</text>
+  </g>
+
+  <g transform="translate(440 150)">
+    <rect width="320" height="280" rx="28" fill="#1976C5" stroke="#FFD23F" stroke-width="3"/>
+    <g transform="translate(31 14) scale(.50)">
+      <path d="M138 360h250c42 0 76-34 76-76s-34-76-76-76c-10 0-20 2-29 6-12-55-61-92-120-92-58 0-106 37-122 90-9-3-18-4-28-4-44 0-80 36-80 80s36 72 80 72" fill="none" stroke="#FFD23F" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M96 360h44" fill="none" stroke="#FFD23F" stroke-width="34" stroke-linecap="round"/>
+    </g>
+    <text x="24" y="250" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" letter-spacing="1">02 · OPEN / 留白</text>
+  </g>
+
+  <g transform="translate(808 150)">
+    <rect width="320" height="280" rx="28" fill="#1976C5" stroke="#FFD23F" stroke-width="3"/>
+    <g transform="translate(31 14) scale(.50)">
+      <path d="M128 372h266c40 0 72-32 72-72s-32-72-72-72c-9 0-18 2-27 5-13-51-59-85-116-85-55 0-101 35-115 84-8-3-17-4-26-4-42 0-76 34-76 76s34 68 76 68h18" fill="none" stroke="#FFD23F" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="24" y="250" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" letter-spacing="1">03 · BOLD / 厚线</text>
+  </g>
+
+  <g transform="translate(256 500)">
+    <rect width="320" height="280" rx="28" fill="#1976C5" stroke="#FFD23F" stroke-width="3"/>
+    <g transform="translate(31 14) scale(.50)">
+      <path d="M126 346h266c40 0 72-32 72-72s-32-72-72-72c-9 0-18 2-27 5-13-51-59-85-116-85-55 0-101 35-115 84-8-3-17-4-26-4-42 0-76 34-76 76s34 68 76 68h18" fill="none" stroke="#FFD23F" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M170 382h170" fill="none" stroke="#FFD23F" stroke-width="26" stroke-linecap="round"/>
+    </g>
+    <text x="24" y="250" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" letter-spacing="1">04 · LAYER / 叠线</text>
+  </g>
+
+  <g transform="translate(624 500)">
+    <rect width="320" height="280" rx="28" fill="#1976C5" stroke="#FFD23F" stroke-width="3"/>
+    <g transform="translate(31 14) scale(.50)">
+      <path d="M122 352h271c39 0 71-32 71-71s-32-71-71-71c-9 0-18 2-26 5-12-50-57-84-112-84-54 0-98 34-112 82-8-3-16-4-25-4-41 0-74 33-74 74s33 69 74 69h4" fill="none" stroke="#FFD23F" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="24" y="250" fill="#FFD23F" font-family="Arial, Microsoft YaHei, sans-serif" font-size="15" font-weight="700" letter-spacing="1">05 · MINIMAL / 极简</text>
+  </g>
+</svg>

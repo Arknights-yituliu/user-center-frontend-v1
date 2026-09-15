@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud citrus logo concept</title>
+  <desc id="desc">A citrus core inside a rounded cloud outline, in yellow on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path d="M126 360h260c42 0 76-34 76-76s-34-76-76-76c-10 0-20 2-29 6-12-55-61-92-120-92-58 0-106 37-122 90-9-3-18-4-28-4-44 0-80 36-80 80s36 72 80 72h39" fill="none" stroke="#FFD23F" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="76" fill="none" stroke="#FFD23F" stroke-width="16"/>
+  <g fill="#FFD23F">
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z"/>
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z" transform="rotate(60 256 256)"/>
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z" transform="rotate(120 256 256)"/>
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z" transform="rotate(180 256 256)"/>
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z" transform="rotate(240 256 256)"/>
+    <path d="M256 256c-12-16-18-35-15-53 9-3 21-3 30 0 3 18-3 37-15 53Z" transform="rotate(300 256 256)"/>
+  </g>
+  <circle cx="256" cy="256" r="13" fill="#1976C5" stroke="#FFD23F" stroke-width="8"/>
+</svg>

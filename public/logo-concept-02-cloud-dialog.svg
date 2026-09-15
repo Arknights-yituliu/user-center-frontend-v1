@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Dialog logo concept</title>
+  <desc id="desc">A rounded cloud speech mark in yellow on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path fill="#FFD23F" d="M107 324c-29-15-49-46-49-82 0-51 42-93 93-93 8 0 16 1 24 3 17-40 57-68 103-68 60 0 109 45 115 103 42 8 74 45 74 90 0 51-41 92-92 92H244l-78 57 17-57h-32c-16 0-31-2-44-9Zm44-142c-33 0-60 27-60 60 0 19 9 37 24 48l18 13-4 14 29-21h219c33 0 59-26 59-59 0-31-24-56-55-59l-26-3-3-25c-5-42-41-74-84-74-34 0-64 21-77 51l-11 25-26-7a54 54 0 0 0-3-1Z"/>
+</svg>

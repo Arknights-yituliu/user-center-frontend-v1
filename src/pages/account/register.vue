@@ -206,7 +206,7 @@ async function toRegister() {
   <div class="auth-page">
     <section class="auth-intro">
       <div class="auth-intro-top">
-        <img src="/logo.png" alt="" width="40" height="40" />
+        <img src="/logo.svg" alt="" width="40" height="40" />
         <span>一图流 / ACCOUNT</span>
       </div>
       <div class="auth-intro-copy">

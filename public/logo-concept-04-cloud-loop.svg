@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Loop logo concept</title>
+  <desc id="desc">A compact yellow cloud loop mark on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path fill="#FFD23F" d="M116 365c-37 0-67-30-67-67s30-67 67-67c7 0 14 1 21 3 13-45 55-78 104-78 56 0 102 41 111 95h18c45 0 82 37 82 82s-37 82-82 82H116Zm0-102c-19 0-35 16-35 35s16 35 35 35h254c28 0 50-22 50-50s-22-50-50-50h-47l-3-23c-5-38-38-67-78-67-37 0-69 25-77 60l-7 30-28-18a36 36 0 0 0-14-3Zm147 53c-13 0-24 11-24 24s11 24 24 24 24-11 24-24-11-24-24-24Zm75 0c-13 0-24 11-24 24s11 24 24 24 24-11 24-24-11-24-24-24Z"/>
+</svg>

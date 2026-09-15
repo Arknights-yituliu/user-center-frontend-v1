@@ -1,5 +1,133 @@
 <script setup lang="ts">
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+
+const toolNodes = [
+  'mdi-apps',
+  'mdi-view-grid-outline',
+  'mdi-shape-outline',
+  'mdi-view-dashboard-outline',
+]
+
+type SyncConnection = {
+  d: string
+  key: string
+}
+
+const syncConnectionNodes = [
+  { key: 'tool-1', selector: '.sync-tool-node-1', bend: 0.24 },
+  { key: 'tool-2', selector: '.sync-tool-node-2', bend: -0.38 },
+  { key: 'tool-3', selector: '.sync-tool-node-3', bend: -0.24 },
+  { key: 'tool-4', selector: '.sync-tool-node-4', bend: 0.28 },
+  { key: 'laptop', selector: '.sync-device-laptop', bend: 0.22 },
+  { key: 'tablet', selector: '.sync-device-tablet', bend: -0.12 },
+  { key: 'phone', selector: '.sync-device-phone', bend: 0.2 },
+  { key: 'monitor', selector: '.sync-device-monitor', bend: -0.2 },
+  { key: 'watch', selector: '.sync-device-watch', bend: 0 },
+]
+
+const diagramRef = ref<HTMLElement | null>(null)
+const coreLogoRef = ref<HTMLImageElement | null>(null)
+const syncConnections = ref<SyncConnection[]>([])
+const diagramSize = ref({ width: 520, height: 470 })
+let syncResizeObserver: ResizeObserver | null = null
+
+function updateSyncConnections(): void {
+  const diagram = diagramRef.value
+  const coreLogo = coreLogoRef.value
+
+  if (!diagram || !coreLogo) {
+    return
+  }
+
+  const diagramRect = diagram.getBoundingClientRect()
+  const coreRect = coreLogo.getBoundingClientRect()
+
+  if (!diagramRect.width || !diagramRect.height || !coreRect.width) {
+    return
+  }
+
+  diagramSize.value = {
+    width: diagramRect.width,
+    height: diagramRect.height,
+  }
+
+  const center = {
+    x: coreRect.left - diagramRect.left + coreRect.width / 2,
+    y: coreRect.top - diagramRect.top + coreRect.height / 2,
+  }
+  const coreRadius = Math.min(coreRect.width, coreRect.height) / 2
+  const coreGap = Math.max(12, diagramRect.width * 0.025)
+  const nodeGap = Math.max(10, diagramRect.width * 0.03)
+
+  syncConnections.value = syncConnectionNodes.flatMap((node) => {
+    const element = diagram.querySelector<HTMLElement>(node.selector)
+
+    if (!element) {
+      return []
+    }
+
+    const nodeRect = element.getBoundingClientRect()
+    const nodeCenter = {
+      x: nodeRect.left - diagramRect.left + nodeRect.width / 2,
+      y: nodeRect.top - diagramRect.top + nodeRect.height / 2,
+    }
+    const deltaX = nodeCenter.x - center.x
+    const deltaY = nodeCenter.y - center.y
+    const distance = Math.hypot(deltaX, deltaY)
+
+    if (!distance) {
+      return []
+    }
+
+    const unit = {
+      x: deltaX / distance,
+      y: deltaY / distance,
+    }
+    const nodeRadius = Math.max(nodeRect.width, nodeRect.height) / 2
+    const start = {
+      x: nodeCenter.x - unit.x * (nodeRadius + nodeGap),
+      y: nodeCenter.y - unit.y * (nodeRadius + nodeGap),
+    }
+    const end = {
+      x: center.x + unit.x * (coreRadius + coreGap),
+      y: center.y + unit.y * (coreRadius + coreGap),
+    }
+    const midpoint = {
+      x: (start.x + end.x) / 2,
+      y: (start.y + end.y) / 2,
+    }
+    const bendAmount = Math.min(30, Math.max(14, diagramRect.width * 0.055)) * node.bend
+    const control = {
+      x: midpoint.x - unit.y * bendAmount,
+      y: midpoint.y + unit.x * bendAmount,
+    }
+
+    return [
+      {
+        key: node.key,
+        d: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
+      },
+    ]
+  })
+}
+
+onMounted(async () => {
+  await nextTick()
+  updateSyncConnections()
+
+  if (diagramRef.value) {
+    syncResizeObserver = new ResizeObserver(updateSyncConnections)
+    syncResizeObserver.observe(diagramRef.value)
+  }
+
+  coreLogoRef.value?.addEventListener('load', updateSyncConnections)
+})
+
+onBeforeUnmount(() => {
+  syncResizeObserver?.disconnect()
+  coreLogoRef.value?.removeEventListener('load', updateSyncConnections)
+})
 </script>
 
 <template>
@@ -8,65 +136,98 @@ import { RouterLink } from 'vue-router'
       <div class="landing-copy">
         <div class="landing-kicker">
           <span class="kicker-mark"></span>
-          酸橙云 / Orange Cloud
+          酸橙云 / This Land Cloud
         </div>
-        <h1>你的工具数据，<br /><em>登录就能找回。</em></h1>
+        <h1>在设备和工具之间<br /><em>无缝同步你的数据</em></h1>
         <p class="landing-description">
           酸橙云可以把你的个人配置和使用数据会保存到云端。更换设备或浏览器后，也能继续之前的体验。
         </p>
 
         <div class="landing-actions">
-          <RouterLink
-            class="landing-primary"
-            to="/home"
-          >
+          <RouterLink class="landing-primary" to="/home">
             进入个人中心
             <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
           </RouterLink>
           <RouterLink class="landing-secondary" to="/projects">
-            查看已入驻工具
+            进入授权控制台
             <v-icon icon="mdi-arrow-top-right" size="17"></v-icon>
           </RouterLink>
         </div>
 
         <div class="landing-note">
           <span class="note-line"></span>
-          <span>已入驻 4 个工具</span>
+          <span>连接多种工具</span>
           <span class="note-line note-line-short"></span>
         </div>
       </div>
 
-      <div class="landing-visual" aria-hidden="true">
-        <div class="visual-corner visual-corner-yellow"></div>
-        <div class="visual-corner visual-corner-pink"></div>
-        <div class="visual-label visual-label-top">CLOUD DATA / 01</div>
-        <div class="visual-window">
-          <div class="window-toolbar">
-            <span class="window-dots"><i></i><i></i><i></i></span>
-            <span>酸橙云</span>
-            <span>SYNCED</span>
+      <div
+        class="landing-visual"
+        role="img"
+        aria-label="酸橙云在多个工具与多种设备之间双向同步数据"
+      >
+        <div ref="diagramRef" class="sync-diagram">
+          <svg
+            class="sync-connections"
+            :viewBox="`0 0 ${diagramSize.width} ${diagramSize.height}`"
+            aria-hidden="true"
+          >
+            <defs>
+              <marker
+                id="sync-arrow"
+                markerWidth="6"
+                markerHeight="6"
+                refX="5"
+                refY="3"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 6 3 L 0 6 z" fill="#ffd23f" />
+              </marker>
+            </defs>
+            <path
+              v-for="connection in syncConnections"
+              :key="connection.key"
+              class="sync-connection-path"
+              :d="connection.d"
+            />
+          </svg>
+
+          <div class="sync-orbit" aria-hidden="true"></div>
+
+          <img
+            ref="coreLogoRef"
+            class="sync-core-logo"
+            src="/logo.svg"
+            alt="酸橙云"
+            width="166"
+            height="166"
+          />
+
+          <div
+            v-for="(toolIcon, index) in toolNodes"
+            :key="toolIcon"
+            class="sync-symbol sync-tool-symbol"
+            :class="`sync-tool-node-${index + 1}`"
+          >
+            <v-icon :icon="toolIcon" size="21" aria-hidden="true"></v-icon>
           </div>
-          <div class="window-body">
-            <div class="window-brand">
-              <img src="/logo.png" alt="" width="76" height="76" />
-              <div>
-                <span>你的数据</span>
-                <strong>会留下来</strong>
-              </div>
-            </div>
-            <div class="window-divider"></div>
-            <div class="window-list">
-              <div><span>明日方舟一图流</span><b>已保存</b></div>
-              <div><span>终末地一图流</span><b>已保存</b></div>
-              <div><span>明日方舟工具箱</span><b>已保存</b></div>
-            </div>
-            <div class="window-footer">
-              <span>云端数据</span>
-              <strong><i></i> 已连接</strong>
-            </div>
+
+          <div class="sync-symbol sync-device-symbol sync-device-laptop">
+            <v-icon icon="mdi-laptop" size="25" aria-hidden="true"></v-icon>
+          </div>
+          <div class="sync-symbol sync-device-symbol sync-device-tablet">
+            <v-icon icon="mdi-tablet" size="25" aria-hidden="true"></v-icon>
+          </div>
+          <div class="sync-symbol sync-device-symbol sync-device-phone">
+            <v-icon icon="mdi-cellphone" size="25" aria-hidden="true"></v-icon>
+          </div>
+          <div class="sync-symbol sync-device-symbol sync-device-monitor">
+            <v-icon icon="mdi-monitor" size="25" aria-hidden="true"></v-icon>
+          </div>
+          <div class="sync-symbol sync-device-symbol sync-device-watch">
+            <v-icon icon="mdi-watch-variant" size="24" aria-hidden="true"></v-icon>
           </div>
         </div>
-        <div class="visual-label visual-label-bottom">ACCOUNT / STORAGE / SYNC</div>
       </div>
     </section>
   </div>
@@ -74,6 +235,8 @@ import { RouterLink } from 'vue-router'
 
 <style scoped>
 .landing-page {
+  width: 100%;
+  min-width: 0;
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px 32px 72px;
@@ -83,6 +246,8 @@ import { RouterLink } from 'vue-router'
   position: relative;
   overflow: hidden;
   display: grid;
+  width: 100%;
+  min-width: 0;
   grid-template-columns: minmax(0, 1fr) minmax(380px, 0.88fr);
   gap: 52px;
   align-items: center;
@@ -90,6 +255,23 @@ import { RouterLink } from 'vue-router'
   padding: 64px 66px;
   background: var(--site-accent);
   box-shadow: 14px 14px 0 var(--site-warm);
+}
+
+.landing-hero::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: url('/landing-texture.png');
+  background-size: 96px 96px;
+  content: '';
+  opacity: 1;
+  pointer-events: none;
+}
+
+.landing-copy,
+.landing-visual {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-kicker {
@@ -112,9 +294,9 @@ import { RouterLink } from 'vue-router'
 .landing-copy h1 {
   margin: 20px 0 0;
   color: var(--site-surface);
-  font-size: clamp(50px, 6.8vw, 86px);
+  font-size: clamp(48px, 6vw, 68px);
   font-weight: 650;
-  letter-spacing: -0.06em;
+  letter-spacing: 0;
   line-height: 0.98;
 }
 
@@ -147,7 +329,9 @@ import { RouterLink } from 'vue-router'
   color: var(--site-ink);
   font-size: 13px;
   font-weight: 750;
-  transition: background 160ms ease, transform 160ms ease;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
 }
 
 .landing-primary:hover {
@@ -172,7 +356,7 @@ import { RouterLink } from 'vue-router'
 }
 
 .landing-note {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 12px;
   margin-top: 52px;
@@ -195,184 +379,183 @@ import { RouterLink } from 'vue-router'
 .landing-visual {
   position: relative;
   display: grid;
+  min-width: 0;
   min-height: 470px;
   place-items: center;
 }
 
-.visual-corner {
+.sync-diagram {
+  position: relative;
+  width: min(100%, 520px);
+  aspect-ratio: 520 / 470;
+}
+
+.sync-connections {
   position: absolute;
-  width: 56px;
-  height: 56px;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.sync-connection-path {
+  fill: none;
+  stroke: rgb(255 253 246 / 0.56);
+  stroke-dasharray: 4 8;
+  stroke-linecap: round;
+  stroke-width: 1.45;
+  marker-start: url('#sync-arrow');
+  marker-end: url('#sync-arrow');
+  animation: sync-dash 16s linear infinite;
+}
+
+.sync-connection-path:nth-of-type(even) {
+  animation-direction: reverse;
+}
+
+.sync-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 78%;
+  aspect-ratio: 1;
+  border: 1px dashed rgb(255 253 246 / 0.28);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: sync-orbit 26s linear infinite;
+}
+
+.sync-core-logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: block;
+  width: clamp(128px, 32%, 168px);
+  height: auto;
+  transform: translate(-50%, -50%);
+}
+
+.sync-symbol {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  color: var(--site-ink);
+}
+
+.sync-tool-symbol {
+  border: 1px solid rgb(255 253 246 / 0.8);
+  border-radius: 50%;
+  background: var(--site-warm);
+  box-shadow: 5px 5px 0 rgb(239 120 168 / 0.7);
+}
+
+.sync-tool-node-1 {
+  top: 8%;
+  left: 4%;
+}
+
+.sync-tool-node-2 {
+  top: 26%;
+  right: 16%;
+  border-radius: 7px;
+  background: var(--site-cyan);
+  transform: rotate(45deg);
+}
+
+.sync-tool-node-3 {
+  top: 64%;
+  right: 3%;
+  border-radius: 50% 50% 50% 8px;
+  background: var(--site-pink);
+  transform: rotate(-18deg);
+}
+
+.sync-tool-node-4 {
+  top: 80%;
+  left: 24%;
+  border-radius: 5px;
+  background: var(--site-green);
   transform: rotate(12deg);
 }
 
-.visual-corner-yellow {
-  top: 10px;
-  right: 5%;
-  background: var(--site-warm);
+.sync-tool-node-2 .v-icon {
+  transform: rotate(-45deg);
 }
 
-.visual-corner-pink {
-  bottom: 2px;
-  left: 2%;
-  width: 40px;
-  height: 82px;
-  background: var(--site-pink);
+.sync-tool-node-3 .v-icon {
+  transform: rotate(18deg);
+}
+
+.sync-tool-node-4 .v-icon {
   transform: rotate(-12deg);
 }
 
-.visual-label {
-  position: absolute;
-  color: rgb(255 253 246 / 0.72);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.16em;
+.sync-device-symbol {
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgb(255 253 246 / 0.78);
+  border-radius: 50%;
+  background: rgb(213 242 243 / 0.2);
+  color: var(--site-surface);
+  box-shadow: 5px 5px 0 rgb(91 199 212 / 0.7);
 }
 
-.visual-label-top {
-  top: 42px;
+.sync-device-laptop {
+  top: 5%;
+  right: 8%;
+}
+
+.sync-device-tablet {
+  top: 45%;
+  right: 2%;
+  box-shadow: 5px 5px 0 rgb(239 120 168 / 0.7);
+}
+
+.sync-device-phone {
+  top: 72%;
+  left: 2%;
+  box-shadow: 5px 5px 0 rgb(255 210 63 / 0.75);
+}
+
+.sync-device-monitor {
+  top: 38%;
   left: 1%;
+  box-shadow: 5px 5px 0 rgb(91 199 212 / 0.7);
 }
 
-.visual-label-bottom {
-  right: 1%;
-  bottom: 38px;
+.sync-device-watch {
+  top: 1%;
+  right: 48%;
+  width: 42px;
+  height: 42px;
+  box-shadow: 5px 5px 0 rgb(255 210 63 / 0.75);
 }
 
-.visual-window {
-  position: relative;
-  width: min(100%, 390px);
-  border: 1px solid var(--site-ink);
-  background: var(--site-surface);
-  box-shadow: 16px 16px 0 var(--site-pink);
-  transform: rotate(3deg);
+@keyframes sync-dash {
+  to {
+    stroke-dashoffset: -48;
+  }
 }
 
-.window-toolbar {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  min-height: 42px;
-  padding: 0 15px;
-  border-bottom: 1px solid var(--site-line);
-  color: var(--site-muted);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.1em;
+@keyframes sync-orbit {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
 }
 
-.window-toolbar > span:nth-child(2) {
-  color: var(--site-ink);
-  letter-spacing: 0.04em;
-}
-
-.window-toolbar > span:last-child {
-  color: var(--site-accent);
-  text-align: right;
-}
-
-.window-dots {
-  display: flex;
-  gap: 5px;
-}
-
-.window-dots i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--site-pink);
-}
-
-.window-dots i:nth-child(2) {
-  background: var(--site-warm);
-}
-
-.window-dots i:nth-child(3) {
-  background: var(--site-cyan);
-}
-
-.window-body {
-  padding: 26px 24px 20px;
-}
-
-.window-brand {
-  display: flex;
-  align-items: center;
-  gap: 17px;
-}
-
-.window-brand img {
-  display: block;
-  width: 68px;
-  height: 68px;
-  filter: brightness(0) invert(1);
-}
-
-.window-brand span,
-.window-footer span {
-  color: var(--site-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.window-brand strong {
-  display: block;
-  margin-top: 4px;
-  color: var(--site-ink);
-  font-size: 27px;
-  font-weight: 700;
-  letter-spacing: -0.05em;
-}
-
-.window-divider {
-  height: 1px;
-  margin: 24px 0 16px;
-  background: var(--site-line);
-}
-
-.window-list {
-  display: grid;
-  gap: 11px;
-}
-
-.window-list div,
-.window-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-}
-
-.window-list div {
-  color: var(--site-ink);
-  font-size: 12px;
-}
-
-.window-list b {
-  color: var(--site-green);
-  font-size: 10px;
-  font-weight: 750;
-}
-
-.window-footer {
-  margin-top: 24px;
-  padding-top: 14px;
-  border-top: 1px solid var(--site-line);
-}
-
-.window-footer strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--site-green);
-  font-size: 11px;
-}
-
-.window-footer i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
+@media (prefers-reduced-motion: reduce) {
+  .sync-connection-path,
+  .sync-orbit {
+    animation: none;
+  }
 }
 
 @media (max-width: 800px) {
@@ -381,7 +564,7 @@ import { RouterLink } from 'vue-router'
   }
 
   .landing-hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 34px;
     min-height: 0;
     padding: 48px 36px 42px;
@@ -390,7 +573,6 @@ import { RouterLink } from 'vue-router'
   .landing-visual {
     min-height: 390px;
   }
-
 }
 
 @media (max-width: 520px) {
@@ -400,7 +582,7 @@ import { RouterLink } from 'vue-router'
   }
 
   .landing-copy h1 {
-    font-size: 52px;
+    font-size: 38px;
   }
 
   .landing-hero {
@@ -418,17 +600,69 @@ import { RouterLink } from 'vue-router'
     min-height: 330px;
   }
 
-  .visual-window {
-    width: min(100%, 330px);
+  .sync-symbol {
+    width: 34px;
+    height: 34px;
   }
 
-  .window-body {
-    padding-right: 18px;
-    padding-left: 18px;
+  .sync-device-symbol {
+    width: 42px;
+    height: 42px;
   }
 
-  .visual-label {
-    font-size: 8px;
+  .sync-device-watch {
+    width: 34px;
+    height: 34px;
+  }
+
+  .sync-symbol .v-icon {
+    font-size: 18px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .landing-copy h1 {
+    font-size: 30px;
+  }
+
+  .sync-core-logo {
+    width: 90px;
+  }
+
+  .sync-symbol {
+    width: 26px;
+    height: 26px;
+  }
+
+  .sync-device-symbol {
+    width: 34px;
+    height: 34px;
+  }
+
+  .sync-device-watch {
+    width: 28px;
+    height: 28px;
+  }
+
+  .sync-symbol .v-icon {
+    font-size: 15px !important;
+  }
+
+  .sync-tool-node-2 {
+    top: 29%;
+    right: 10%;
+  }
+
+  .sync-tool-node-3 {
+    top: 65%;
+  }
+
+  .sync-tool-node-4 {
+    left: 16%;
+  }
+
+  .sync-device-phone {
+    left: 0;
   }
 }
 </style>

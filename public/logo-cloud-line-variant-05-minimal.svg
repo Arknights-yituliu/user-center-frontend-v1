@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Line minimal variant</title>
+  <desc id="desc">A minimal single-stroke cloud line in yellow on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path d="M122 352h271c39 0 71-32 71-71s-32-71-71-71c-9 0-18 2-26 5-12-50-57-84-112-84-54 0-98 34-112 82-8-3-16-4-25-4-41 0-74 33-74 74s33 69 74 69h4" fill="none" stroke="#FFD23F" stroke-width="27" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

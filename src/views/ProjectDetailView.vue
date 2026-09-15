@@ -68,11 +68,11 @@ const project = computed(() => getProject(String(route.params.slug)))
         接入酸橙云，为应用提供账号登录和按用户隔离的数据保存能力，不必为每个简单工具单独搭建后端。
       </p>
       <div class="developer-actions">
-        <RouterLink class="developer-primary" to="/user/oauth-clients">
+        <RouterLink class="developer-primary" to="/developer?tab=clients">
           开始接入
           <v-icon icon="mdi-arrow-top-right" size="17"></v-icon>
         </RouterLink>
-        <RouterLink class="developer-secondary" to="/user/oauth-config-guide">
+        <RouterLink class="developer-secondary" to="/developer?tab=config">
           查看数据服务说明
         </RouterLink>
       </div>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Line bold variant</title>
+  <desc id="desc">A bold compact cloud line in yellow on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path d="M128 372h266c40 0 72-32 72-72s-32-72-72-72c-9 0-18 2-27 5-13-51-59-85-116-85-55 0-101 35-115 84-8-3-17-4-26-4-42 0-76 34-76 76s34 68 76 68h18" fill="none" stroke="#FFD23F" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

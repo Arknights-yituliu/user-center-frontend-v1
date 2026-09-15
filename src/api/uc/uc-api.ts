@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type { Method } from 'axios'
 import { createMessage } from '../../utils/message'
-import { UC_REQUEST_BASE_URL } from '../BASE_URL'
+import { UC_BASE_URL } from '../BASE_URL'
 
 // ---- UC 会话在浏览器端的存储 key（与站内 OAuth 会话 OAUTH_TOKEN 隔离，避免互相干扰）----
 const UC_TOKEN_KEY = 'UC_TOKEN'
@@ -243,7 +243,7 @@ export function ucRequest<T = unknown>({
   data = null,
   auth = true,
   token = '',
-  baseUrl = UC_REQUEST_BASE_URL,
+  baseUrl = UC_BASE_URL,
 }: UcRequestConfig = {}): Promise<UcResponse<T>> {
   return new Promise((resolve, reject) => {
     const headers: Record<string, string> = {}

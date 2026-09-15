@@ -5,6 +5,14 @@ import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
 import {getUcToken, setUcSession, ucRequest} from "../../api/uc/uc-api";
 
+const props = defineProps({
+    embedded: {
+        type: Boolean,
+        default: false,
+    },
+})
+const emit = defineEmits(['success'])
+
 /** 登录表单：accountType=password 时用 账号(邮箱或用户名)+密码；accountType=email 时用 邮箱+验证码 */
 const inputContent = ref({
     accountType: 'password',
@@ -128,6 +136,11 @@ async function sendVerificationCode() {
  */
 function handleLoginSuccess(data) {
     setUcSession(data.token, data.uid)
+    if (props.embedded) {
+        createMessage({type: 'success', text: '登录成功'})
+        emit('success', data)
+        return
+    }
     // 处于 OAuth 授权回跳流程时，直接换票回跳继续授权，不走普通跳转
     if (oauthRedirect.value) {
         redirectIfOAuth()
@@ -199,10 +212,10 @@ async function toLogin() {
 </script>
 
 <template>
-  <div class="auth-page">
-    <section class="auth-intro">
+  <div class="auth-page" :class="{'auth-page-embedded': props.embedded}">
+    <section v-if="!props.embedded" class="auth-intro">
       <div class="auth-intro-top">
-        <img src="/logo.png" alt="" width="40" height="40" />
+        <img src="/logo.svg" alt="" width="40" height="40" />
         <span>一图流 / ACCOUNT</span>
       </div>
       <div class="auth-intro-copy">
@@ -340,6 +353,13 @@ async function toLogin() {
   padding: 64px 42px;
 }
 
+.auth-page-embedded {
+  display: block;
+  min-height: 0;
+  max-width: none;
+  padding: 0;
+}
+
 .auth-intro {
   display: flex;
   flex-direction: column;
@@ -422,6 +442,12 @@ async function toLogin() {
   background: var(--site-surface) !important;
   box-shadow: 14px 14px 0 var(--site-accent) !important;
   overflow: hidden;
+}
+
+.auth-page-embedded .login-card {
+  max-width: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .login-header {

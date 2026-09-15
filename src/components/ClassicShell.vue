@@ -71,7 +71,7 @@ async function handleLogout(): Promise<void> {
           @click="mobileNavOpen = !mobileNavOpen"
         ></v-btn>
         <RouterLink to="/" class="classic-header-brand">
-          <img src="/logo.png" alt="一图流用户中心" width="24" height="24" />
+          <img src="/logo.svg" alt="一图流用户中心" width="24" height="24" />
           <span>一图流用户中心</span>
         </RouterLink>
       </div>

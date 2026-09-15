@@ -234,7 +234,7 @@ function resetParameters(): void {
 function scrollToSection(id: string): void {
   activeSection.value = id
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  window.history.replaceState(null, '', `${window.location.pathname}#${id}`)
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${id}`)
 }
 
 let observer: IntersectionObserver | null = null

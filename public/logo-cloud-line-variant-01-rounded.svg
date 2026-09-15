@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Line rounded variant</title>
+  <desc id="desc">A balanced rounded cloud line in yellow on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path d="M140 360h250c42 0 76-34 76-76s-34-76-76-76c-10 0-20 2-29 6-12-55-61-92-120-92-58 0-106 37-122 90-9-3-18-4-28-4-44 0-80 36-80 80s36 72 80 72h49" fill="none" stroke="#FFD23F" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

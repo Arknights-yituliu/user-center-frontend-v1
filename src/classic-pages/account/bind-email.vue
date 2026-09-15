@@ -70,10 +70,6 @@ function startCountdown(countdownRef) {
  */
 onMounted(async () => {
     if (!getUcToken()) {
-        if (import.meta.env.DEV) {
-            pageLoading.value = false
-            return
-        }
         createMessage({text: "请先登录", type: "warning"})
         router.push({name: "LOGIN"})
         return

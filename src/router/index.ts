@@ -3,7 +3,6 @@ import UserView from '../views/UserView.vue'
 import { getUcToken } from '../api/uc/uc-api'
 import LandingView from '../views/LandingView.vue'
 import ProjectsView from '../views/ProjectsView.vue'
-import ProjectDetailView from '../views/ProjectDetailView.vue'
 import ClassicUserView from '../classic-pages/UserView.vue'
 
 const router = createRouter({
@@ -15,7 +14,7 @@ const router = createRouter({
       name: 'LANDING',
       component: LandingView,
       meta: {
-        title: '酸橙云 · 一图流工具',
+        title: '酸橙云 · 让这片大地数据互通',
         hideSidebar: true,
       },
     },
@@ -29,13 +28,37 @@ const router = createRouter({
       },
     },
     {
-      path: '/projects/:slug',
-      name: 'PROJECT_DETAIL',
-      component: ProjectDetailView,
+      path: '/ui-preview',
+      name: 'UI_PREVIEW',
+      component: () => import('../views/UIPreviewView.vue'),
       meta: {
-        title: '工具详情 · 酸橙云',
+        title: '标题模块预览 · 酸橙云',
         hideSidebar: true,
       },
+    },
+    {
+      path: '/color',
+      name: 'COLOR',
+      component: () => import('../views/ColorView.vue'),
+      meta: {
+        title: '配色方案 · 酸橙云',
+        hideSidebar: true,
+      },
+    },
+    {
+      // 面向所有用户的产品使用指南，无需登录即可查看
+      path: '/user-guide',
+      name: 'USER_GUIDE',
+      component: () => import('../views/UserGuideView.vue'),
+      meta: {
+        title: '用户指南 · 酸橙云',
+        hideSidebar: true,
+      },
+    },
+    {
+      path: '/projects/:slug',
+      name: 'PROJECT_DETAIL',
+      redirect: { name: 'PROJECTS' },
     },
     {
       // 新版用户中心允许未登录访问，登录后再展示真实资料
@@ -46,7 +69,27 @@ const router = createRouter({
         title: '账号首页',
       },
     },
+    {
+      // 统一承载开发者中心的客户端管理和三类接入文档
+      path: '/developer',
+      name: 'DEVELOPER',
+      component: () => import('../views/DeveloperView.vue'),
+      meta: {
+        title: '开发者中心',
+        requiresAuth: true,
+      },
+    },
     { path: '/user/profile', redirect: { name: 'USER_PROFILE' } },
+    {
+      // 通用数据维护：用户维护可被多个工具共同使用的个人数据
+      path: '/common-data',
+      name: 'COMMON_DATA',
+      component: () => import('../views/CommonDataView.vue'),
+      meta: {
+        title: '通用数据维护',
+      },
+    },
+    { path: '/user/common-data', redirect: { name: 'COMMON_DATA' } },
     {
       // 原版项目入口：完整旧版站点统一挂在 /classic/ 下
       path: '/classic/',
@@ -264,6 +307,9 @@ const router = createRouter({
       // this generates a separate chunk (About.[hash].js)
       // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
+      meta: {
+        title: '关于酸橙云',
+      },
     },
     {
       path: '/login',
@@ -370,8 +416,8 @@ router.beforeEach((to, from) => {
     }
   }
 
-  // 开发模式允许直接查看受保护页面，方便核对界面和路由；生产环境仍严格要求登录。
-  if (to.meta.requiresAuth && !getUcToken() && !import.meta.env.DEV) {
+  // 受保护页面在开发和生产环境都要求有效登录态。
+  if (to.meta.requiresAuth && !getUcToken()) {
     return {
       name: to.meta.classicShell ? 'CLASSIC_LOGIN' : 'LOGIN',
       query: { returnTo: to.fullPath },

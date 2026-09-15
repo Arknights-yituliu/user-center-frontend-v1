@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Cloud Line logo concept</title>
+  <desc id="desc">A geometric yellow cloud outline on the blue theme background.</desc>
+  <rect width="512" height="512" rx="112" fill="#1976C5"/>
+  <path d="M143 366h231c41 0 74-33 74-74s-33-74-74-74c-9 0-18 2-26 5-11-57-61-100-121-100-55 0-102 36-118 86-8-3-16-4-25-4-45 0-81 36-81 81s36 80 80 80h60" fill="none" stroke="#FFD23F" stroke-width="35" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M181 366h122" fill="none" stroke="#FFD23F" stroke-width="35" stroke-linecap="round"/>
+</svg>
