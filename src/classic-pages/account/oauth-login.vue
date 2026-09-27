@@ -354,6 +354,16 @@ async function toLogin() {
     overflow: hidden;
 }
 
+/* 登录方式 tab：选中为白色，未选中为灰白色，便于在主题色背景上区分 */
+.login-card :deep(.v-tab) {
+    color: rgb(255 255 255 / 0.72);
+    font-weight: 700;
+}
+
+.login-card :deep(.v-tab--selected) {
+    color: #fff;
+}
+
 /* 标题区 */
 .login-header {
     padding: 28px 24px 20px;

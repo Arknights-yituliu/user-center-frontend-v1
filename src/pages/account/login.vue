@@ -485,13 +485,13 @@ async function toLogin() {
 
 .login-card :deep(.v-tab) {
   min-height: 48px;
-  color: var(--site-muted);
+  color: rgb(255 255 255 / 0.72);
   font-size: 12px;
   font-weight: 700;
 }
 
 .login-card :deep(.v-tab--selected) {
-  color: var(--site-ink);
+  color: #fff;
 }
 
 .login-card :deep(.v-card-text) {

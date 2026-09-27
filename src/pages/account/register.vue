@@ -6,14 +6,14 @@ import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
 import {setUcSession, setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
 
-/** 注册表单：password=账号注册（可带邮箱） email=邮箱注册（必须带邮箱验证码） */
+/** 注册表单：用户名、密码、确认密码、邮箱、邮箱验证码均为必填，昵称选填 */
 const inputContent = ref({
-    accountType: 'password',
     userName: '',
-    email: '',
-    verificationCode: '',
     password: '',
     confirmPassword: '',
+    email: '',
+    verificationCode: '',
+    nickname: '',
 })
 
 /** 注册 / 发送验证码 加载状态 */
@@ -28,6 +28,11 @@ const route = useRoute()
 
 /** OAuth 授权回跳地址：从登录页 / OAuth 安全登录页"去注册"跳转时携带（?redirect=<authorize完整地址>） */
 const oauthRedirect = ref("")
+
+/** 跳转登录页（保留 OAuth 授权回跳参数） */
+function toLogin() {
+    router.push({name: 'LOGIN', query: oauthRedirect.value ? {redirect: oauthRedirect.value} : {}})
+}
 
 /** 基础非空校验 */
 function checkField(value, label) {
@@ -117,50 +122,35 @@ async function sendVerificationCode() {
 }
 
 /**
- * 注册：按当前 tab 调 UC POST /auth/register（注册即自动登录）
- * - 账号注册：registerType=password，userName 必填；邮箱可选，但填了邮箱必须带验证码
- * - 邮箱注册：registerType=email_code，邮箱 + 验证码必填
+ * 注册：调用 UC POST /auth/register（注册即自动登录）
+ * 仅有账号密码一种注册方式：用户名、邮箱、邮箱验证码、密码必填，昵称选填
  */
 async function toRegister() {
     const form = inputContent.value
     const payload = {registerType: 'password'}
 
-    if (form.accountType === 'password') {
-        if (!checkField(form.userName, "用户名")) {
-            return
-        }
-        if (!/^[A-Za-z0-9_]{3,20}$/.test(form.userName)) {
-            createMessage({text: "用户名仅支持字母、数字、下划线，长度 3-20 位", type: "warning"})
-            return
-        }
-        payload.userName = form.userName
-        // 填了邮箱就必须提供验证码（UC 规则）
-        if (form.email) {
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-                createMessage({text: "邮箱格式不正确", type: "warning"})
-                return
-            }
-            if (!checkField(form.verificationCode, "邮箱验证码")) {
-                return
-            }
-            payload.email = form.email
-            payload.verificationCode = form.verificationCode
-        }
-    } else {
-        payload.registerType = 'email_code'
-        if (!checkField(form.email, "邮箱")) {
-            return
-        }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-            createMessage({text: "邮箱格式不正确", type: "warning"})
-            return
-        }
-        if (!checkField(form.verificationCode, "邮箱验证码")) {
-            return
-        }
-        payload.email = form.email
-        payload.verificationCode = form.verificationCode
+    if (!checkField(form.userName, "用户名")) {
+        return
     }
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(form.userName)) {
+        createMessage({text: "用户名仅支持字母、数字、下划线，长度 3-20 位", type: "warning"})
+        return
+    }
+    payload.userName = form.userName
+
+    if (!checkField(form.email, "邮箱")) {
+        return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+        createMessage({text: "邮箱格式不正确", type: "warning"})
+        return
+    }
+    payload.email = form.email
+
+    if (!checkField(form.verificationCode, "邮箱验证码")) {
+        return
+    }
+    payload.verificationCode = form.verificationCode
 
     if (!checkField(form.password, "密码") || !checkPassword(form.password)) {
         return
@@ -170,6 +160,16 @@ async function toRegister() {
         return
     }
     payload.password = form.password
+
+    // 昵称选填：填写时校验长度并提交
+    const nickname = form.nickname.trim()
+    if (nickname) {
+        if (nickname.length > 20) {
+            createMessage({text: "昵称长度不能超过 20 个字符", type: "warning"})
+            return
+        }
+        payload.nickname = nickname
+    }
 
     registerLoading.value = true
     try {
@@ -226,143 +226,85 @@ async function toRegister() {
         <div class="login-eyebrow">一图流账号中心</div>
         <div class="login-title">创建一图流账号</div>
         <div class="login-sub">注册后可以在支持的一图流服务中使用同一个账号</div>
+        <v-btn text="已有账号，去登录" variant="text" color="primary" @click="toLogin()"></v-btn>
       </div>
 
-      <v-tabs v-model="inputContent.accountType" bg-color="primary" grow>
-        <v-tab value="password">账号注册</v-tab>
-        <v-tab value="email">邮箱注册</v-tab>
-      </v-tabs>
-
       <v-card-text>
-        <v-tabs-window v-model="inputContent.accountType">
-          <!-- 账号注册 -->
-          <v-tabs-window-item value="password">
-            <div class="m-0-4">用户名（必填）</div>
-            <v-text-field
-                density="compact"
-                v-model="inputContent.userName"
-                placeholder="3-20 位，仅字母、数字、下划线"
-                color="primary"
-                variant="outlined"
-                class="m-4"
-            ></v-text-field>
+        <div class="m-0-4">用户名</div>
+        <v-text-field
+            density="compact"
+            v-model="inputContent.userName"
+            placeholder="3-20 位，仅字母、数字、下划线"
+            color="primary"
+            variant="outlined"
+            class="m-4"
+        ></v-text-field>
 
-            <div class="m-0-4">登录密码</div>
-            <v-text-field
-                density="compact"
-                color="primary"
-                v-model="inputContent.password"
-                variant="outlined"
-                type="password"
-                placeholder="6-32 位，仅数字、字母、@、下划线"
-                hide-details="auto"
-                class="m-4"
-            ></v-text-field>
+        <div class="m-0-4">登录密码</div>
+        <v-text-field
+            density="compact"
+            color="primary"
+            v-model="inputContent.password"
+            variant="outlined"
+            type="password"
+            placeholder="6-32 位，仅数字、字母、@、下划线"
+            hide-details="auto"
+            class="m-4"
+        ></v-text-field>
 
-            <div class="m-0-4">确认密码</div>
-            <v-text-field
-                density="compact"
-                color="primary"
-                v-model="inputContent.confirmPassword"
-                variant="outlined"
-                type="password"
-                placeholder="再次输入密码"
-                hide-details="auto"
-                class="m-4"
-            ></v-text-field>
+        <div class="m-0-4">确认密码</div>
+        <v-text-field
+            density="compact"
+            color="primary"
+            v-model="inputContent.confirmPassword"
+            variant="outlined"
+            type="password"
+            placeholder="再次输入密码"
+            hide-details="auto"
+            class="m-4"
+        ></v-text-field>
 
-            <div class="m-0-4">绑定邮箱（选填，填了则需验证）</div>
-            <v-text-field
-                density="compact"
-                color="primary"
-                v-model="inputContent.email"
-                variant="outlined"
-                placeholder="找回账号的唯一方式"
-                class="m-4"
-            ></v-text-field>
+        <div class="m-0-4">邮箱</div>
+        <v-text-field
+            density="compact"
+            color="primary"
+            v-model="inputContent.email"
+            variant="outlined"
+            placeholder="用于验证身份与找回密码"
+            class="m-4"
+        ></v-text-field>
 
-            <div class="m-0-4">邮箱验证码（填了邮箱则必填）</div>
-            <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
-            <v-otp-input
-                v-model="inputContent.verificationCode"
-                length="6"
-                type="number"
-                density="compact"
-                variant="outlined"
-                class="m-4"
-            ></v-otp-input>
+        <div class="m-0-4">邮箱验证码</div>
+        <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
+        <v-otp-input
+            v-model="inputContent.verificationCode"
+            length="6"
+            type="number"
+            density="compact"
+            variant="outlined"
+            class="m-4"
+        ></v-otp-input>
 
-            <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
-            <div class="flex justify-center mt-1 mb-4">
-              <v-btn
-                  color="primary"
-                  variant="text"
-                  :loading="sendCodeLoading"
-                  :disabled="codeCountdown > 0"
-                  @click="sendVerificationCode"
-              >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '获取验证码' }}</v-btn>
-            </div>
-          </v-tabs-window-item>
+        <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
+        <div class="flex justify-center mt-1 mb-4">
+          <v-btn
+              color="primary"
+              variant="text"
+              :loading="sendCodeLoading"
+              :disabled="codeCountdown > 0"
+              @click="sendVerificationCode"
+          >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '获取验证码' }}</v-btn>
+        </div>
 
-          <!-- 邮箱注册 -->
-          <v-tabs-window-item value="email">
-            <div class="m-0-4">邮箱（必填）</div>
-            <v-text-field
-                v-model="inputContent.email"
-                color="primary"
-                density="compact"
-                variant="outlined"
-                placeholder="请输入邮箱"
-                class="m-4"
-            ></v-text-field>
-
-            <div class="m-0-4">邮箱验证码（必填）</div>
-            <!-- 6 位验证码分格输入（不设 color，避免 OTP 格子背景被染成主色） -->
-            <v-otp-input
-                v-model="inputContent.verificationCode"
-                length="6"
-                type="number"
-                density="compact"
-                variant="outlined"
-                class="m-4"
-            ></v-otp-input>
-
-            <!-- 获取验证码按钮放在验证码输入框下方，上间距收紧 -->
-            <div class="flex justify-center mt-1 mb-4">
-              <v-btn
-                  color="primary"
-                  variant="text"
-                  :loading="sendCodeLoading"
-                  :disabled="codeCountdown > 0"
-                  @click="sendVerificationCode"
-              >{{ codeCountdown > 0 ? `${codeCountdown}s 后重发` : '获取验证码' }}</v-btn>
-            </div>
-
-            <div class="m-0-4">登录密码</div>
-            <v-text-field
-                density="compact"
-                color="primary"
-                v-model="inputContent.password"
-                variant="outlined"
-                type="password"
-                placeholder="6-32 位，仅数字、字母、@、下划线"
-                hide-details="auto"
-                class="m-4"
-            ></v-text-field>
-
-            <div class="m-0-4">确认密码</div>
-            <v-text-field
-                density="compact"
-                color="primary"
-                v-model="inputContent.confirmPassword"
-                variant="outlined"
-                type="password"
-                placeholder="再次输入密码"
-                hide-details="auto"
-                class="m-4"
-            ></v-text-field>
-          </v-tabs-window-item>
-        </v-tabs-window>
+        <div class="m-0-4">昵称（选填）</div>
+        <v-text-field
+            density="compact"
+            color="primary"
+            v-model="inputContent.nickname"
+            variant="outlined"
+            placeholder="最长 20 个字符"
+            class="m-4"
+        ></v-text-field>
 
         <div class="flex justify-center m-4">
           <v-btn
@@ -382,7 +324,7 @@ async function toRegister() {
               这是用于一图流相关服务的账号，不是鹰角网络通行证或明日方舟游戏账号。
             </p>
             <p>
-              用户名和邮箱至少填写一个；绑定邮箱后可以找回密码和使用邮箱登录。
+              注册需填写用户名、邮箱与邮箱验证码；邮箱可用于找回密码和邮箱登录。
             </p>
             <p>
               为了账号安全，请不要使用与其他重要账号相同的密码。
@@ -516,22 +458,6 @@ async function toRegister() {
   color: var(--site-muted);
   font-size: 13px;
   line-height: 1.65;
-}
-
-.login-card :deep(.v-tabs) {
-  border-top: 1px solid var(--site-line);
-  border-bottom: 1px solid var(--site-line);
-}
-
-.login-card :deep(.v-tab) {
-  min-height: 48px;
-  color: var(--site-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.login-card :deep(.v-tab--selected) {
-  color: var(--site-ink);
 }
 
 .login-card :deep(.v-card-text) {

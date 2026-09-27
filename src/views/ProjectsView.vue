@@ -43,14 +43,6 @@ const modeMeta: Record<ProjectConnectionMode, { label: string; icon: string; ton
   },
 }
 
-type DemoConnection = {
-  id: string
-  mode: ProjectConnectionMode
-  dataItems: string[]
-  status: ProjectConnectionStatus
-  token?: string
-}
-
 type CommonTokenGroup = 'operator' | 'repository' | 'gacha'
 type CommonTokenScope =
   | 'operator-read'
@@ -117,30 +109,6 @@ const commonTokenMeta: Record<
   },
 }
 
-const demoOauthConnection = reactive<DemoConnection>({
-  id: 'demo-oauth',
-  mode: 'oauth',
-  dataItems: ['蓝图等用户存储数据'],
-  status: 'authorized',
-})
-
-const demoTokenConnection = reactive<DemoConnection>({
-  id: 'demo-token',
-  mode: 'token',
-  dataItems: ['仓库数据', '干员数据'],
-  status: 'revoked',
-})
-
-const demoCacheConnection = reactive<DemoConnection>({
-  id: 'demo-cache',
-  mode: 'browser-cache',
-  dataItems: ['浏览器缓存数据'],
-  status: 'synced',
-})
-
-const demoConnections = reactive<DemoConnection[]>([demoOauthConnection])
-const visibleDemoToken = ref(false)
-
 const commonDataProjects = reactive<CommonDataProject[]>([
   {
     id: 'arknights',
@@ -155,77 +123,6 @@ const commonDataProjects = reactive<CommonDataProject[]>([
 ])
 
 const visibleCommonToken = ref<{ projectId: string; scope: CommonTokenScope } | null>(null)
-
-function hasDemoConnection(connection: DemoConnection): boolean {
-  return demoConnections.some((item) => item.id === connection.id)
-}
-
-function addDemoConnection(connection: DemoConnection): void {
-  if (!hasDemoConnection(connection)) {
-    demoConnections.push(connection)
-  }
-}
-
-function removeDemoConnection(connection: DemoConnection): void {
-  const index = demoConnections.findIndex((item) => item.id === connection.id)
-  if (index >= 0) demoConnections.splice(index, 1)
-}
-
-function authorizeDemo(): void {
-  demoOauthConnection.status = 'authorized'
-  addDemoConnection(demoOauthConnection)
-  createMessage({ text: '示例授权已添加', type: 'success' })
-}
-
-function generateDemoToken(): void {
-  const hasToken = Boolean(demoTokenConnection.token)
-  demoTokenConnection.token = `slc_demo_${Math.random().toString(36).slice(2, 14)}`
-  demoTokenConnection.status = 'token-ready'
-  addDemoConnection(demoTokenConnection)
-  visibleDemoToken.value = true
-  createMessage({ text: hasToken ? '示例 Token 已重置' : '示例 Token 已生成', type: 'success' })
-}
-
-function addDemoCacheSync(): void {
-  addDemoConnection(demoCacheConnection)
-  createMessage({ text: '示例缓存同步已添加', type: 'success' })
-}
-
-function removeDemoCacheSync(): void {
-  removeDemoConnection(demoCacheConnection)
-}
-
-function revokeDemoOauth(): void {
-  demoOauthConnection.status = 'revoked'
-  removeDemoConnection(demoOauthConnection)
-  createMessage({ text: '示例授权已撤销', type: 'success' })
-}
-
-function revokeDemoToken(): void {
-  demoTokenConnection.token = undefined
-  demoTokenConnection.status = 'revoked'
-  removeDemoConnection(demoTokenConnection)
-  visibleDemoToken.value = false
-  createMessage({ text: '示例 Token 已撤销', type: 'success' })
-}
-
-async function copyDemoToken(): Promise<void> {
-  const token = demoTokenConnection.token
-  if (!token) return
-
-  try {
-    await navigator.clipboard.writeText(token)
-    createMessage({ text: '示例 Token 已复制', type: 'success' })
-  } catch {
-    createMessage({ text: '复制失败，请手动选中 Token', type: 'warning' })
-  }
-}
-
-function maskedDemoToken(): string {
-  const token = demoTokenConnection.token
-  if (!token) return ''
-  return `${token.slice(0, 9)}********${token.slice(-4)}`
-}
 
 function hasCommonToken(project: CommonDataProject, scope: CommonTokenScope): boolean {
   return project.tokenConnections.some((connection) => connection.scope === scope)
@@ -313,12 +210,6 @@ function authorizeProject(project: MockProject): void {
   createMessage({ text: '示例授权已添加', type: 'success' })
 }
 
-function addBrowserCacheSync(project: MockProject): void {
-  if (project.connection.mode !== 'browser-cache') return
-  updateConnection(project, 'synced', '已同步', '最近同步：刚刚')
-  createMessage({ text: '示例缓存同步已添加', type: 'success' })
-}
-
 function revokeProjectOauth(project: MockProject): void {
   if (project.connection.mode !== 'oauth') return
   updateConnection(project, 'revoked', '未授权', '等待工具重新发起授权')
@@ -339,11 +230,6 @@ function revokeToken(project: MockProject): void {
   updateConnection(project, 'revoked', 'Token 已撤销', '需要重新生成 Token')
   visibleTokenSlug.value = null
   createMessage({ text: '示例 Token 已撤销', type: 'success' })
-}
-
-function removeBrowserCacheSync(project: MockProject): void {
-  if (project.connection.mode !== 'browser-cache') return
-  updateConnection(project, 'not-synced', '未同步', '等待工具发起同步')
 }
 
 async function copyToken(project: MockProject): Promise<void> {
@@ -530,147 +416,6 @@ function projectNameStyle(name: string): Record<string, string> {
     >
       <h2 id="dedicated-data-management-title" class="project-section-title">专属数据管理</h2>
       <div class="project-grid" aria-label="专属数据连接列表">
-        <article class="project-card project-card-demo">
-        <div class="project-sidebar">
-          <div class="project-info">
-            <div class="project-identity">
-              <div class="project-icon">
-                <v-icon icon="mdi-view-dashboard-outline" size="27"></v-icon>
-              </div>
-            <div class="project-identity-copy" :style="projectNameStyle('演示用项目')">
-              <p>授权方式演示</p>
-              <h2>演示用项目</h2>
-              </div>
-            </div>
-            <button class="project-visit-button" type="button">
-              访问项目
-              <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
-            </button>
-          </div>
-
-          <div class="project-actions">
-            <div v-if="demoOauthConnection.status === 'revoked'" class="project-action-row">
-              <button class="secondary-button" type="button" @click="authorizeDemo">
-                <v-icon icon="mdi-shield-key-outline" size="16"></v-icon>
-                添加 OAuth 授权
-              </button>
-              <span class="project-action-description">通过 OAuth 授权工具访问数据</span>
-            </div>
-            <div v-if="!demoTokenConnection.token" class="project-action-row">
-              <button class="primary-button" type="button" @click="generateDemoToken">
-                <v-icon icon="mdi-key-plus" size="16"></v-icon>
-                生成 Token
-              </button>
-              <span class="project-action-description">生成供工具访问数据的专属 Token</span>
-            </div>
-            <div v-if="!hasDemoConnection(demoCacheConnection)" class="project-action-row">
-              <button class="secondary-button" type="button" @click="addDemoCacheSync">
-                <v-icon icon="mdi-sync-outline" size="16"></v-icon>
-                添加浏览器缓存同步
-              </button>
-              <span class="project-action-description">允许工具同步浏览器缓存数据</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="project-content demo-project-content">
-          <div v-if="!demoConnections.length" class="content-empty">
-            <span>暂无已同步的内容</span>
-          </div>
-          <div v-else class="content-list">
-            <div
-              v-for="connection in demoConnections"
-              :key="connection.id"
-              class="content-item demo-content-item"
-              :class="`demo-content-item-${modeMeta[connection.mode].tone}`"
-            >
-              <v-icon
-                class="content-item-icon"
-                :icon="modeMeta[connection.mode].icon"
-                size="18"
-              ></v-icon>
-              <div class="content-item-main">
-                <div class="content-item-copy demo-connection-copy">
-                  <div class="demo-connection-line">
-                    <span>{{ modeMeta[connection.mode].label }}</span>
-                    <span class="demo-connection-divider" aria-hidden="true">·</span>
-                    <span>
-                      {{
-                        connection.mode === 'token'
-                          ? visibleDemoToken
-                            ? connection.token
-                            : maskedDemoToken()
-                          : connection.dataItems.join('、')
-                      }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div class="content-item-actions">
-                <button
-                  v-if="connection.mode === 'oauth' && connection.status !== 'revoked'"
-                  class="icon-button icon-button-danger"
-                  type="button"
-                  aria-label="撤销 OAuth 授权"
-                  title="撤销 OAuth 授权"
-                  @click="revokeDemoOauth"
-                >
-                  <v-icon icon="mdi-link-off" size="16"></v-icon>
-                </button>
-                <template v-if="connection.mode === 'token' && connection.token">
-                  <button
-                    class="icon-button"
-                    type="button"
-                    :aria-label="visibleDemoToken ? '隐藏 Token' : '显示 Token'"
-                    :title="visibleDemoToken ? '隐藏 Token' : '显示 Token'"
-                    @click="visibleDemoToken = !visibleDemoToken"
-                  >
-                    <v-icon :icon="visibleDemoToken ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" size="16"></v-icon>
-                  </button>
-                  <button
-                    class="icon-button"
-                    type="button"
-                    aria-label="复制 Token"
-                    title="复制 Token"
-                    @click="copyDemoToken"
-                  >
-                    <v-icon icon="mdi-content-copy" size="16"></v-icon>
-                  </button>
-                  <button
-                    class="icon-button"
-                    type="button"
-                    aria-label="重置 Token"
-                    title="重置 Token"
-                    @click="generateDemoToken"
-                  >
-                    <v-icon icon="mdi-autorenew" size="16"></v-icon>
-                  </button>
-                  <button
-                    class="icon-button icon-button-danger"
-                    type="button"
-                    aria-label="撤销 Token"
-                    title="撤销 Token"
-                    @click="revokeDemoToken"
-                  >
-                    <v-icon icon="mdi-key-remove" size="16"></v-icon>
-                  </button>
-                </template>
-                <button
-                  v-if="connection.mode === 'browser-cache'"
-                  class="icon-button icon-button-danger"
-                  type="button"
-                  aria-label="移除同步"
-                  title="移除同步"
-                  @click="removeDemoCacheSync"
-                >
-                  <v-icon icon="mdi-link-off" size="16"></v-icon>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </article>
-
         <article
           v-for="project in mockProjects"
           :key="project.slug"
@@ -712,22 +457,16 @@ function projectNameStyle(name: string): Record<string, string> {
               </button>
               <span class="project-action-description">生成供工具访问数据的专属 Token</span>
             </div>
-            <div
-              v-if="project.connection.mode === 'browser-cache' && project.connection.status === 'not-synced'"
-              class="project-action-row"
-            >
-              <button class="secondary-button" type="button" @click="addBrowserCacheSync(project)">
-                <v-icon icon="mdi-sync-outline" size="16"></v-icon>
-                添加浏览器缓存同步
-              </button>
-              <span class="project-action-description">允许工具同步浏览器缓存数据</span>
-            </div>
           </div>
         </div>
 
         <div class="project-content">
           <div
-            v-if="project.connection.status === 'not-synced' || project.connection.status === 'revoked'"
+            v-if="
+              project.connection.mode === 'browser-cache' ||
+              project.connection.status === 'not-synced' ||
+              project.connection.status === 'revoked'
+            "
             class="content-empty"
           >
             <span>暂无已同步的内容</span>
@@ -744,16 +483,6 @@ function projectNameStyle(name: string): Record<string, string> {
                   aria-label="撤销 OAuth 授权"
                   title="撤销 OAuth 授权"
                   @click="revokeProjectOauth(project)"
-                >
-                  <v-icon icon="mdi-link-off" size="16"></v-icon>
-                </button>
-                <button
-                  v-else-if="project.connection.mode === 'browser-cache'"
-                  class="icon-button icon-button-danger"
-                  type="button"
-                  aria-label="移除同步"
-                  title="移除同步"
-                  @click="removeBrowserCacheSync(project)"
                 >
                   <v-icon icon="mdi-link-off" size="16"></v-icon>
                 </button>
@@ -1140,10 +869,6 @@ function projectNameStyle(name: string): Record<string, string> {
   border-left-color: var(--site-green);
 }
 
-.project-card-demo {
-  border-left-color: var(--site-accent);
-}
-
 .project-sidebar {
   display: grid;
   grid-template-rows: 96px minmax(0, 1fr);
@@ -1377,49 +1102,6 @@ function projectNameStyle(name: string): Record<string, string> {
   min-height: 100px;
   color: var(--site-muted);
   font-size: 12px;
-}
-
-.demo-content-item {
-  align-items: flex-start;
-}
-
-.demo-content-item .content-item-icon {
-  margin-top: 3px;
-}
-
-.demo-content-item-token .content-item-icon {
-  color: #dd5d8c;
-}
-
-.demo-connection-copy {
-  flex: 1;
-}
-
-.demo-connection-line {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 7px;
-  min-width: 0;
-}
-
-.demo-connection-line > span:first-child {
-  color: var(--site-ink);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.demo-connection-divider {
-  color: var(--site-muted);
-  font-size: 12px;
-}
-
-.demo-connection-line > span:last-child {
-  overflow: hidden;
-  color: var(--site-muted);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .icon-button-danger {
