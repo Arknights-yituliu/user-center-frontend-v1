@@ -10,6 +10,6 @@ export default defineConfig({
   ],
   server: {
     // 指定开发服务器启动端口为 3000
-    port: 3000,
+    port: 4000,
   },
 })

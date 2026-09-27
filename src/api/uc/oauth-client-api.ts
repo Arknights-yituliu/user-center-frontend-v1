@@ -1,4 +1,4 @@
-import { ucRequest, type UcResponse } from './uc-api'
+import { ucRequest, type ConsentScopeItem, type UcResponse } from './uc-api'
 
 /** OAuth 客户端认证方式 */
 export type OAuthClientAuthMethod = 'none' | 'client_secret_post'
@@ -219,5 +219,57 @@ export function revokeOAuthGrant(clientId: string): Promise<UcResponse<null>> {
     method: 'POST',
     url: '/user/oauth/grants/revoke',
     data: { clientId },
+  })
+}
+
+/** 用户自定义授权范围（GET /user/oauth/grants/scopes） */
+export interface OAuthUserScopeVO {
+  /** 应用（OAuth 客户端）ID */
+  clientId: string
+  /** 应用中文名称 */
+  clientName: string
+  /** 当前已授予该应用的权限 */
+  grantedScopes: ConsentScopeItem[]
+  /** 该应用登记的全部可选权限 */
+  selectableScopes: ConsentScopeItem[]
+}
+
+/**
+ * 查看我对某应用的授权范围（GET /user/oauth/grants/scopes）
+ * 返回已授予权限与可选权限，供前端渲染勾选状态
+ * @param clientId 应用（OAuth 客户端）ID
+ */
+export function getUserScopes(clientId: string): Promise<UcResponse<OAuthUserScopeVO>> {
+  return ucRequest<OAuthUserScopeVO>({
+    method: 'GET',
+    url: `/user/oauth/grants/scopes?client_id=${encodeURIComponent(clientId)}`,
+  })
+}
+
+/**
+ * 为已授权的应用追加权限（POST /user/oauth/grants/scopes/grant，只增不减）
+ * 追加结果写入自定义范围表并同步已签发令牌，立即生效
+ * @param clientId 应用（OAuth 客户端）ID
+ * @param scopes 要追加的权限标识集合
+ */
+export function grantUserScopes(clientId: string, scopes: string[]): Promise<UcResponse<null>> {
+  return ucRequest<null>({
+    method: 'POST',
+    url: '/user/oauth/grants/scopes/grant',
+    data: { clientId, scopes },
+  })
+}
+
+/**
+ * 取消我对某应用的已授权权限（POST /user/oauth/grants/scopes/revoke，只减不增）
+ * 剩余权限不可为空；若要彻底收回该应用请使用 revokeOAuthGrant
+ * @param clientId 应用（OAuth 客户端）ID
+ * @param scopes 要取消的权限标识集合
+ */
+export function revokeUserScopes(clientId: string, scopes: string[]): Promise<UcResponse<null>> {
+  return ucRequest<null>({
+    method: 'POST',
+    url: '/user/oauth/grants/scopes/revoke',
+    data: { clientId, scopes },
   })
 }

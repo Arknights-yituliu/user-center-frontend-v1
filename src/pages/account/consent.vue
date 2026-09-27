@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createMessage } from '../../utils/message'
 import { clearUcTmpToken, confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/uc/uc-api'
@@ -16,6 +16,49 @@ const loading = ref(true)
 const submitting = ref(false)
 /** 错误信息（确认单无效/已过期等） */
 const errorMsg = ref('')
+
+/** 用户当前勾选的权限标识集合：提交时按此集合回传，用于追加与取消 */
+const selectedScopes = ref<Set<string>>(new Set())
+
+/** 可勾选全集：该应用登记的全部权限 */
+const selectableScopes = computed(() => consentInfo.value?.selectableScopes ?? [])
+
+/** 已授权的权限标识集合：用于列表上标记「已授权」 */
+const grantedCodes = computed(
+  () => new Set((consentInfo.value?.grantedScopes ?? []).map((item) => item.code)),
+)
+
+/** 是否只剩一项已勾选：仅剩一项时禁止取消，避免提交空集合 */
+const onlyOneSelected = computed(() => selectedScopes.value.size <= 1)
+
+/**
+ * 判断某权限当前是否被勾选
+ * @param code 权限标识
+ */
+function isSelected(code: string): boolean {
+  return selectedScopes.value.has(code)
+}
+
+/**
+ * 切换某权限的勾选状态；仅剩一项时禁止取消（后端要求权限不可为空）
+ * @param code 权限标识
+ */
+function toggleScope(code: string): void {
+  const next = new Set(selectedScopes.value)
+  if (next.has(code)) {
+    if (next.size <= 1) {
+      createMessage({
+        text: '至少保留一项权限；如需全部取消，请改用「撤销对应用的授权」',
+        type: 'warning',
+      })
+      return
+    }
+    next.delete(code)
+  } else {
+    next.add(code)
+  }
+  selectedScopes.value = next
+}
 
 /**
  * 当前确认页完整地址：未登录跳登录页时作为 redirect 参数，
@@ -34,6 +77,10 @@ async function loadConsentInfo(): Promise<void> {
   try {
     const resp = await getConsentInfo(pendingId.value)
     consentInfo.value = resp.data
+    // 初始化勾选：已有自定义授权则回显已授权权限，否则默认勾选本次申请范围
+    const granted = resp.data.grantedScopes ?? []
+    const base = granted.length > 0 ? granted : (resp.data.scopes ?? [])
+    selectedScopes.value = new Set(base.map((item) => item.code))
   } catch (err) {
     const code = err && typeof err === 'object' && 'code' in err ? (err as { code?: number }).code : undefined
     if (code === 80001) {
@@ -54,9 +101,17 @@ async function loadConsentInfo(): Promise<void> {
  */
 async function submit(approve: boolean): Promise<void> {
   if (submitting.value) return
+  if (approve && selectedScopes.value.size === 0) {
+    createMessage({ text: '请至少勾选一项权限', type: 'warning' })
+    return
+  }
   submitting.value = true
   try {
-    const resp = await confirmConsent(pendingId.value, approve)
+    // 按 selectableScopes 的顺序输出勾选结果，保证提交顺序稳定
+    const scopes = approve
+      ? selectableScopes.value.filter((s) => selectedScopes.value.has(s.code)).map((s) => s.code)
+      : undefined
+    const resp = await confirmConsent(pendingId.value, approve, scopes)
     const redirectUrl = resp.data
     if (redirectUrl) {
       // 授权流程结束（同意/拒绝均已回跳第三方）：清除 OAuth 授权流程的临时 token，避免残留
@@ -128,13 +183,32 @@ onMounted(() => {
                 class="m-4"
             ></v-text-field>
 
-            <div class="m-0-4">授权后将允许该网站</div>
+            <div class="m-0-4">授权后将允许该网站（可自行增减）</div>
             <v-list class="m-4 consent-list" density="compact" variant="outlined">
-              <v-list-item v-for="(scope, i) in consentInfo.scopes" :key="i">
+              <v-list-item
+                  v-for="scope in selectableScopes"
+                  :key="scope.code"
+                  @click="toggleScope(scope.code)"
+              >
                 <template v-slot:prepend>
-                  <v-icon color="primary">mdi-check-circle-outline</v-icon>
+                  <v-checkbox-btn
+                      :model-value="isSelected(scope.code)"
+                      :disabled="isSelected(scope.code) && onlyOneSelected"
+                      color="primary"
+                      class="mr-1"
+                      @click.stop="toggleScope(scope.code)"
+                  ></v-checkbox-btn>
                 </template>
-                <v-list-item-title>{{ scope.desc }}</v-list-item-title>
+                <v-list-item-title>
+                  {{ scope.desc }}
+                  <v-chip
+                      v-if="grantedCodes.has(scope.code)"
+                      size="x-small"
+                      variant="tonal"
+                      color="primary"
+                      class="ml-2"
+                  >已授权</v-chip>
+                </v-list-item-title>
                 <v-list-item-subtitle>{{ scope.code }}</v-list-item-subtitle>
               </v-list-item>
             </v-list>
@@ -165,11 +239,14 @@ onMounted(() => {
                 size="large"
                 class="consent-btn"
                 :loading="submitting"
+                :disabled="selectedScopes.size === 0"
                 @click="submit(true)"
             >同意授权</v-btn>
           </div>
 
-          <div class="consent-tip">同意后将跳转回第三方网站，并授予其上述权限。请确认该网站可信任。</div>
+          <div class="consent-tip">
+            同意后将跳转回第三方网站。如需彻底收回该应用的全部权限，请前往「我的授权应用」撤销授权。
+          </div>
         </template>
       </v-card-text>
     </v-card>

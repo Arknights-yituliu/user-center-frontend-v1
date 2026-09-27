@@ -309,8 +309,12 @@ export interface ConsentInfoVO {
   clientName: string
   /** 授权回调地址 */
   redirectUri: string
-  /** 申请权限列表 */
+  /** 本次申请的权限列表 */
   scopes: ConsentScopeItem[]
+  /** 当前已授予该应用的权限（来自用户自定义授权范围；从未自定义过则为空数组） */
+  grantedScopes: ConsentScopeItem[]
+  /** 该应用登记的全部可选权限（用户可在此范围内追加） */
+  selectableScopes: ConsentScopeItem[]
 }
 
 /**
@@ -330,11 +334,16 @@ export function getConsentInfo(pendingId: string): Promise<UcResponse<ConsentInf
  * 同意则返回带授权码的回跳地址，拒绝则返回 error=access_denied 回跳地址
  * @param pendingId 授权确认单 ID
  * @param approve 是否同意授权
+ * @param scopes 用户最终选定的权限标识集合；不传表示沿用申请范围（追加/取消均由该参数承载）
  */
-export function confirmConsent(pendingId: string, approve: boolean): Promise<UcResponse<string>> {
+export function confirmConsent(
+  pendingId: string,
+  approve: boolean,
+  scopes?: string[],
+): Promise<UcResponse<string>> {
   return ucRequest<string>({
     method: 'POST',
     url: '/oauth2/consent',
-    data: { pending_id: pendingId, approve },
+    data: scopes ? { pending_id: pendingId, approve, scopes } : { pending_id: pendingId, approve },
   })
 }
