@@ -54,14 +54,12 @@ let messageBars: string[] = []
 
 /** 重新计算所有存活消息的垂直排布（每条向下堆叠 50px） */
 function relayoutMessages(): void {
-  for (const i in messageBars) {
-    const id = messageBars[i]
-    if (!id) continue
-    const bar = document.getElementById(id)
+  messageBars.forEach((barId, index) => {
+    const bar = document.getElementById(barId)
     if (bar) {
-      bar.style.top = 20 + Number(i) * 50 + 'px'
+      bar.style.top = 20 + index * 50 + 'px'
     }
-  }
+  })
 }
 
 /** 消息配置 */
@@ -75,37 +73,31 @@ interface MessageConfig {
 }
 
 /**
- * 创建并展示一条全局轻量消息提示
- * 消息从页面顶部居中浮现，多条消息依次向下堆叠，duration 后自动淡出并移除
- * @param config 消息配置 { text: 消息内容, type: 消息类型, duration: 持续时间 }
+ * 消息渲染的统一实现：创建元素、套用色板、淡入淡出并在到期后销毁
+ * @param text 消息内容
+ * @param type 消息类型，取 colorStyle 的键：success / warn(warning) / error / info
+ * @param duration 持续时间（毫秒），未传或传 0 时取 4000
  */
-function createMessage(config: MessageConfig): void {
-  const text = config.text
-  const type = config.type || 'info'
-  const duration = config.duration || 4000
+function showMessage(text: string, type?: string, duration?: number): void {
+  const stay = duration || 4000
 
   send++
 
   // 创建一个 message 元素
   const messageBar = document.createElement('div')
-  const style = messageBar.style as unknown as Record<string, string>
 
   // 赋予 message 元素基础样式
-  for (const property in baseStyle) {
-    const value = baseStyle[property]
-    if (value !== undefined) style[property] = value
-  }
+  Object.assign(messageBar.style, baseStyle)
 
-  // 赋予 message 元素的类型颜色样式
-  const typeStyle = colorStyle[type] || {}
-  for (const property in typeStyle) {
-    const value = typeStyle[property]
-    if (value !== undefined) style[property] = value
+  // 赋予 message 元素的类型颜色样式（type 非法时跳过，保持基础样式）
+  const typeStyle = colorStyle[type ?? '']
+  if (typeStyle) {
+    Object.assign(messageBar.style, typeStyle)
   }
 
   // 赋予 message 元素独立 id 并登记到存活列表
   messageBar.id = 'messageBar' + send
-  messageBars.push('messageBar' + send)
+  messageBars.push(messageBar.id)
 
   // 向 message 元素写入文本并挂载到页面
   messageBar.textContent = text
@@ -120,14 +112,32 @@ function createMessage(config: MessageConfig): void {
   // 在消息消失前 300ms 开始淡出，与 transition 保持一致
   setTimeout(() => {
     messageBar.style.opacity = '0'
-  }, duration - 300)
+  }, stay - 300)
 
-  // 持续时间结束后销毁元素，并将剩余消息上移补位
+  // 持续时间结束后销毁元素，并按 id 精确移除（各条 duration 可不同），剩余消息上移补位
   setTimeout(() => {
     messageBar.remove()
-    messageBars = messageBars.splice(1)
+    messageBars = messageBars.filter((barId) => barId !== messageBar.id)
     relayoutMessages()
-  }, duration)
+  }, stay)
 }
 
-export { createMessage }
+/**
+ * 对象入参形式的消息提示
+ * @param config 消息配置 { text: 消息内容, type: 消息类型, duration: 持续时间 }
+ */
+function createMessage(config: MessageConfig): void {
+  showMessage(config.text, config.type || 'info', config.duration)
+}
+
+/**
+ * 位置参数形式的消息提示
+ * @param text 消息内容
+ * @param type 消息类型，取 colorStyle 的键：success / warn(warning) / error / info，默认 success
+ * @param duration 持续时间（毫秒），默认 4000
+ */
+function cMessage(text: string, type = 'success', duration = 4000): void {
+  showMessage(text, type, duration)
+}
+
+export { cMessage, createMessage }
