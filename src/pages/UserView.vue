@@ -10,7 +10,7 @@ import {
 } from '../api/uc/uc-api'
 import { createMessage } from '../utils/message'
 
-const LoginView = defineAsyncComponent(() => import('../pages/account/login.vue'))
+const LoginView = defineAsyncComponent(() => import('./account/login.vue'))
 const router = useRouter()
 const pageLoading = ref(true)
 const loggedIn = ref(!!getUcToken())

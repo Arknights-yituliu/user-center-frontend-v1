@@ -1,8 +1,25 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import UserView from '../views/UserView.vue'
+import UserView from '../pages/UserView.vue'
 import { getUcToken } from '../api/uc/uc-api'
-import LandingView from '../views/LandingView.vue'
-import ProjectsView from '../views/ProjectsView.vue'
+import LandingView from '../pages/LandingView.vue'
+import ProjectsView from '../pages/ProjectsView.vue'
+import ColorView from '../pages/ColorView.vue'
+import UIPreviewView from '../pages/UIPreviewView.vue'
+import UserGuideView from '../pages/UserGuideView.vue'
+import DeveloperView from '../pages/DeveloperView.vue'
+import CommonDataView from '../pages/CommonDataView.vue'
+import AboutView from '../pages/AboutView.vue'
+import LoginView from '../pages/account/login.vue'
+import OAuthLoginView from '../pages/account/oauth-login.vue'
+import RegisterView from '../pages/account/register.vue'
+import ConsentView from '../pages/account/consent.vue'
+import RetrieveView from '../pages/account/retrieve.vue'
+import BindEmailView from '../pages/account/bind-email.vue'
+import OAuthClientsView from '../pages/account/oauth-clients.vue'
+import OAuthGrantsView from '../pages/account/oauth-grants.vue'
+import OAuthWebGuideView from '../pages/account/oauth-web-guide.vue'
+import OAuthServerGuideView from '../pages/account/oauth-server-guide.vue'
+import OAuthConfigGuideView from '../pages/account/oauth-config-guide.vue'
 import ClassicUserView from '../classic-pages/UserView.vue'
 
 const router = createRouter({
@@ -30,7 +47,7 @@ const router = createRouter({
     {
       path: '/ui-preview',
       name: 'UI_PREVIEW',
-      component: () => import('../views/UIPreviewView.vue'),
+      component: UIPreviewView,
       meta: {
         title: '标题模块预览 · 酸橙云',
         hideSidebar: true,
@@ -39,7 +56,7 @@ const router = createRouter({
     {
       path: '/color',
       name: 'COLOR',
-      component: () => import('../views/ColorView.vue'),
+      component: ColorView,
       meta: {
         title: '配色方案 · 酸橙云',
         hideSidebar: true,
@@ -49,7 +66,7 @@ const router = createRouter({
       // 面向所有用户的产品使用指南，无需登录即可查看
       path: '/user-guide',
       name: 'USER_GUIDE',
-      component: () => import('../views/UserGuideView.vue'),
+      component: UserGuideView,
       meta: {
         title: '用户指南 · 酸橙云',
         hideSidebar: true,
@@ -73,7 +90,7 @@ const router = createRouter({
       // 统一承载开发者中心的客户端管理和三类接入文档
       path: '/developer',
       name: 'DEVELOPER',
-      component: () => import('../views/DeveloperView.vue'),
+      component: DeveloperView,
       meta: {
         title: '开发者中心',
         requiresAuth: true,
@@ -84,7 +101,7 @@ const router = createRouter({
       // 通用数据维护：用户维护可被多个工具共同使用的个人数据
       path: '/common-data',
       name: 'COMMON_DATA',
-      component: () => import('../views/CommonDataView.vue'),
+      component: CommonDataView,
       meta: {
         title: '通用数据维护',
       },
@@ -235,7 +252,7 @@ const router = createRouter({
       // 绑定/换绑邮箱：requiresAuth=true 需登录
       path: '/user/email',
       name: 'BIND_EMAIL',
-      component: () => import('../pages/account/bind-email.vue'),
+      component: BindEmailView,
       meta: {
         title: '绑定/换绑邮箱',
         requiresAuth: true,
@@ -245,7 +262,7 @@ const router = createRouter({
       // 重置密码（找回密码）：未登录可从登录页进入，无需登录
       path: '/user/retrieve',
       name: 'RETRIEVE',
-      component: () => import('../pages/account/retrieve.vue'),
+      component: RetrieveView,
       meta: {
         title: '重置密码',
       },
@@ -254,7 +271,7 @@ const router = createRouter({
       // OAuth 客户端自助管理：开发者维护自己名下的 OAuth 客户端（/user/oauth/client/**），需登录
       path: '/user/oauth-clients',
       name: 'OAUTH_CLIENTS',
-      component: () => import('../pages/account/oauth-clients.vue'),
+      component: OAuthClientsView,
       meta: {
         title: '客户端管理',
         requiresAuth: true,
@@ -264,7 +281,7 @@ const router = createRouter({
       // 我的授权应用：查看授权过的第三方应用并按应用撤销（/user/oauth/grants），需登录
       path: '/user/oauth-grants',
       name: 'OAUTH_GRANTS',
-      component: () => import('../pages/account/oauth-grants.vue'),
+      component: OAuthGrantsView,
       meta: {
         title: '我的授权应用',
         requiresAuth: true,
@@ -274,7 +291,7 @@ const router = createRouter({
       // 无后端 Web 应用 OAuth2 接入指南：可从客户端管理页带入接入参数，需登录
       path: '/user/oauth-guide',
       name: 'OAUTH_WEB_GUIDE',
-      component: () => import('../pages/account/oauth-web-guide.vue'),
+      component: OAuthWebGuideView,
       meta: {
         title: '无后端 Web 授权',
         requiresAuth: true,
@@ -284,7 +301,7 @@ const router = createRouter({
       // 加密客户端 OAuth2 接入指南：密钥、PKCE 和令牌均由可信业务后端管理，需登录
       path: '/user/oauth-server-guide',
       name: 'OAUTH_SERVER_GUIDE',
-      component: () => import('../pages/account/oauth-server-guide.vue'),
+      component: OAuthServerGuideView,
       meta: {
         title: '加密客户端授权',
         requiresAuth: true,
@@ -294,7 +311,7 @@ const router = createRouter({
       // OAuth access token 用户配置接口指南：保存、读取、删除、配额与 CAS 冲突处理，需登录
       path: '/user/oauth-config-guide',
       name: 'OAUTH_CONFIG_GUIDE',
-      component: () => import('../pages/account/oauth-config-guide.vue'),
+      component: OAuthConfigGuideView,
       meta: {
         title: 'OAuth 用户配置',
         requiresAuth: true,
@@ -303,10 +320,7 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js)
-      // which is lazy-loaded when the route is visited.
-      component: () => import('../views/AboutView.vue'),
+      component: AboutView,
       meta: {
         title: '关于酸橙云',
       },
@@ -314,7 +328,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'LOGIN',
-      component: () => import('../pages/account/login.vue'),
+      component: LoginView,
       meta: {
         title: '登录账号',
         hideSidebar: true,
@@ -333,7 +347,7 @@ const router = createRouter({
       // 区别于普通登录页：不读取本地 UC token 自动换票、登录后不将 token 写入 localStorage
       path: '/oauth2/login',
       name: 'OAUTH_LOGIN',
-      component: () => import('../pages/account/oauth-login.vue'),
+      component: OAuthLoginView,
       meta: {
         title: '授权登录',
         hideSidebar: true,
@@ -342,7 +356,7 @@ const router = createRouter({
     {
       path: '/account/register',
       name: 'REGISTER',
-      component: () => import('../pages/account/register.vue'),
+      component: RegisterView,
       meta: {
         title: '注册账号',
         hideSidebar: true,
@@ -352,7 +366,7 @@ const router = createRouter({
       // OAuth 授权确认页：第三方网站接入时展示申请权限，未登录时页内跳授权登录页
       path: '/oauth2/consent',
       name: 'OAUTH_CONSENT',
-      component: () => import('../pages/account/consent.vue'),
+      component: ConsentView,
       meta: {
         title: '授权确认',
         hideSidebar: true,

@@ -35,10 +35,10 @@ const developerTabs: DeveloperTab[] = [
 ]
 
 const tabComponents: Record<DeveloperTabId, Component> = {
-  clients: defineAsyncComponent(() => import('../pages/account/oauth-clients.vue')),
-  web: defineAsyncComponent(() => import('../pages/account/oauth-web-guide.vue')),
-  server: defineAsyncComponent(() => import('../pages/account/oauth-server-guide.vue')),
-  config: defineAsyncComponent(() => import('../pages/account/oauth-config-guide.vue')),
+  clients: defineAsyncComponent(() => import('./account/oauth-clients.vue')),
+  web: defineAsyncComponent(() => import('./account/oauth-web-guide.vue')),
+  server: defineAsyncComponent(() => import('./account/oauth-server-guide.vue')),
+  config: defineAsyncComponent(() => import('./account/oauth-config-guide.vue')),
 }
 
 const route = useRoute()
