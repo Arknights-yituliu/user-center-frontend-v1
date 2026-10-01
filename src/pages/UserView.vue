@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import {
-  getUcToken,
-  getUcUid,
-  getUserProfile,
-  updateProfile,
-  type UcProfileVO,
-} from '../api/uc/uc-api'
+import { getUcToken, getUcUid } from '../api/user-center/request'
+import { getUserProfile, updateProfile, type UcProfileVO } from '../api/user-center/user-api'
 import { createMessage } from '../utils/message'
 
 const LoginView = defineAsyncComponent(() => import('./account/login.vue'))

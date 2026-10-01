@@ -4,7 +4,7 @@ import '../../assets/css/account/login.v2.scss'
 import '../../assets/css/account/login.v2.phone.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {setUcSession, setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
+import {setUcSession, setUcTmpToken, ucRequest} from "../../api/user-center/request";
 
 /** 注册表单：用户名、密码、确认密码、邮箱、邮箱验证码均为必填，昵称选填 */
 const inputContent = ref({

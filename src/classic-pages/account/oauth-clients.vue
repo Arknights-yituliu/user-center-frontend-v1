@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUcToken } from '../../api/uc/uc-api'
+import { getUcToken } from '../../api/user-center/request'
 import {
   deleteOAuthClient,
   listOAuthClients,
@@ -14,7 +14,7 @@ import {
   type OAuthGrantType,
   type RegisterClientParams,
   type UpdateClientParams,
-} from '../../api/uc/oauth-client-api'
+} from '../../api/user-center/oauth-client-api'
 import { createMessage } from '../../utils/message'
 
 interface ClientFormFields {

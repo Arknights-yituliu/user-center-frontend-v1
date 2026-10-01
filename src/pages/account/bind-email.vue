@@ -2,14 +2,14 @@
 import {ref, computed, onMounted} from "vue";
 import {createMessage} from "../../utils/message";
 import {useRouter} from "vue-router";
+import { getUcToken } from "../../api/user-center/request";
 import {
-    getUcToken,
     getUserProfile,
     sendEmailCode,
     sendChangeEmailCode,
     bindEmail,
     changeEmail,
-} from "../../api/uc/uc-api";
+} from "../../api/user-center/user-api";
 
 const router = useRouter()
 

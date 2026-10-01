@@ -4,7 +4,8 @@ import '../../assets/css/account/login.v2.scss'
 import '../../assets/css/account/login.v2.phone.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {setUcSession, setUcTmpToken, ucRequest} from "../../api/uc/uc-api";
+import {setUcSession, setUcTmpToken} from "../../api/user-center/request";
+import {getOAuthTicket, register, sendEmailCode} from "../../api/user-center/user-api";
 
 /** 注册表单：用户名、密码、确认密码、邮箱、邮箱验证码均为必填，昵称选填 */
 const inputContent = ref({
@@ -55,7 +56,7 @@ async function redirectIfOAuth(token) {
     }
     try {
         // 显式传入本次注册 token（ucRequest 中 token 参数优先级高于本地 localStorage）
-        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket", token})
+        const resp = await getOAuthTicket(token)
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
@@ -99,12 +100,7 @@ async function sendVerificationCode() {
     }
     sendCodeLoading.value = true
     try {
-        await ucRequest({
-            method: "POST",
-            url: "/auth/send-code",
-            data: {email, usage: "register"},
-            auth: false,
-        })
+        await sendEmailCode(email, "register")
         createMessage({text: "验证码发送成功", type: "success"})
         // 发送成功后开始 60s 倒计时
         codeCountdown.value = 60
@@ -173,12 +169,7 @@ async function toRegister() {
 
     registerLoading.value = true
     try {
-        const resp = await ucRequest({
-            method: "POST",
-            url: "/auth/register",
-            data: payload,
-            auth: false,
-        })
+        const resp = await register(payload)
         // 注册即自动登录
         const data = resp.data || {}
         // 处于 OAuth 授权回跳流程：不写入正式会话，临时 token 供授权确认页读取（授权完成后清除），换票回跳继续授权

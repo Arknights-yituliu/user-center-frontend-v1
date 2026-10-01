@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createMessage } from '../../utils/message'
-import { clearUcTmpToken, confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/uc/uc-api'
+import { clearUcTmpToken } from '../../api/user-center/request'
+import { confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/user-center/user-api'
 
 const router = useRouter()
 

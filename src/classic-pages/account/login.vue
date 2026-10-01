@@ -3,7 +3,7 @@ import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {getUcToken, setUcSession, ucRequest} from "../../api/uc/uc-api";
+import {getUcToken, setUcSession, ucRequest} from "../../api/user-center/request";
 
 /** 登录表单：accountType=password 时用 账号(邮箱或用户名)+密码；accountType=email 时用 邮箱+验证码 */
 const inputContent = ref({

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { getUcToken, logoutUcSession } from './api/uc/uc-api'
+import { getUcToken } from './api/user-center/request'
+import { logoutUcSession } from './api/user-center/user-api'
 import ClassicShell from './components/ClassicShell.vue'
 
 const route = useRoute()

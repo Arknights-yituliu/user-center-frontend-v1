@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUcToken } from '../../api/uc/uc-api'
+import { getUcToken } from '../../api/user-center/request'
 import {
   listOAuthGrants,
   revokeOAuthGrant,
   type OAuthGrantGroup,
-} from '../../api/uc/oauth-client-api'
+} from '../../api/user-center/oauth-client-api'
 import { createMessage } from '../../utils/message'
 
 const router = useRouter()

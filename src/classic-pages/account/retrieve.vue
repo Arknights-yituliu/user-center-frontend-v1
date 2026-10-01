@@ -2,7 +2,7 @@
 import {ref} from "vue";
 import {createMessage} from "../../utils/message";
 import {useRouter} from "vue-router";
-import {sendResetCode, resetPassword} from "../../api/uc/uc-api";
+import {sendResetCode, resetPassword} from "../../api/user-center/user-api";
 
 /** 当前步骤：sendCode=账号验证 resetPassword=设置新密码 resetSuccessful=完成 */
 const currentStepper = ref("sendCode")

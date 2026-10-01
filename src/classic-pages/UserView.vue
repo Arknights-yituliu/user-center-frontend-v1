@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { getUcUid } from '../api/user-center/request'
 import {
-  getUcUid,
   getUserProfile,
   logoutUcSession,
   updateProfile,
   type UcProfileVO,
-} from '../api/uc/uc-api'
+} from '../api/user-center/user-api'
 import { createMessage } from '../utils/message'
 
 const router = useRouter()

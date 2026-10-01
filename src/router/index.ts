@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import UserView from '../pages/UserView.vue'
-import { getUcToken } from '../api/uc/uc-api'
+import { getUcToken } from '../api/user-center/request'
 import LandingView from '../pages/LandingView.vue'
 import ProjectsView from '../pages/ProjectsView.vue'
 import ColorView from '../pages/ColorView.vue'

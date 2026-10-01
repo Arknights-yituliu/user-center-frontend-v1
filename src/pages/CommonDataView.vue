@@ -15,14 +15,17 @@ import {
   extractOfficialToken,
   getSklandBindingAccounts,
   getSklandCredentialByOfficialToken,
-  getSklandOperatorCharacters,
-  mapSklandCharactersToOperatorData,
-  parseSklandCredential,
   type SklandBindingAccount,
   type SklandCredential,
   SklandRequestError,
 } from '../api/skland-operator-api'
 import { createMessage } from '../utils/message'
+import {
+  getCredAndSecret,
+  getPlayBindingV2,
+  getWarehouseInfo,
+  type SklandOperatorRecord,
+} from '../utils/skland'
 
 type OperatorDataSource = 'none' | 'skland' | 'manual'
 
@@ -307,6 +310,34 @@ function applyOperatorRows(records: OperatorRecord[], source: OperatorDataSource
   operatorLoadError.value = ''
 }
 
+/**
+ * 把森空岛工具类返回的上传格式干员记录转换成页面表格行
+ * 潜能沿用森空岛原值；接口未返回中文名时以干员 id 兜底展示
+ * @param operators utils/skland 返回的干员记录
+ * @returns 页面表格使用的干员行
+ */
+function mapSklandOperatorsToRows(operators: SklandOperatorRecord[]): OperatorRecord[] {
+  return operators.map((operator) => ({
+    id: `operator-${++operatorIdSeed}`,
+    name: operator.id,
+    charId: operator.id,
+    own: true,
+    level: operator.level,
+    elite: operator.evolvePhase,
+    potential: operator.potentialRank,
+    rarity: operator.rarity,
+    mainSkill: operator.mainSkillLevel,
+    skill1: operator.skill1,
+    skill2: operator.skill2,
+    skill3: operator.skill3,
+    modX: operator.equipX,
+    modY: operator.equipY,
+    modD: operator.equipD,
+    modA: operator.equipA,
+    modB: operator.equipB,
+  }))
+}
+
 function applyImportedOperators(records: OperatorRecord[]): void {
   applyOperatorRows(records, 'manual')
   importText.value = ''
@@ -386,11 +417,25 @@ function closeSklandCredentialDialog(): void {
 
 async function submitSklandCredential(): Promise<void> {
   if (isLoadingAccounts.value) return
+
+  isLoadingAccounts.value = true
+  operatorLoadError.value = ''
   try {
-    const credential = parseSklandCredential(sklandCredentialInput.value)
-    if (await prepareAccountSelection(credential)) closeSklandCredentialDialog()
+    // 凭证解析、绑定账号与默认账号选择全部交给 utils/skland 工具类处理
+    const { cred, token } = getCredAndSecret(sklandCredentialInput.value)
+    if (!cred || !token) throw new Error('凭证格式应为 cred,token')
+
+    const binding = await getPlayBindingV2('0', '', cred, token)
+    if (!binding.bindingList.length) throw new Error('未找到绑定的明日方舟账号')
+
+    pendingSklandCredential.value = { cred, token }
+    bindingAccounts.value = binding.bindingList
+    accountDialog.value = true
+    closeSklandCredentialDialog()
   } catch (error) {
-    operatorLoadError.value = getErrorMessage(error, '森空岛凭证格式不正确')
+    operatorLoadError.value = getErrorMessage(error, '森空岛账号读取失败')
+  } finally {
+    isLoadingAccounts.value = false
   }
 }
 
@@ -423,8 +468,9 @@ async function importFromSklandAccount(account: SklandBindingAccount): Promise<v
   isLoadingOperators.value = true
   operatorLoadError.value = ''
   try {
-    const characters = await getSklandOperatorCharacters(credential, account.uid)
-    const records = normalizeOperators(mapSklandCharactersToOperatorData(characters))
+    // 仓库与干员数据由 utils/skland 工具类拉取并格式化成上传格式
+    const warehouse = await getWarehouseInfo(account.uid, credential.cred, credential.token)
+    const records = mapSklandOperatorsToRows(warehouse.operators)
     if (!records.length) throw new Error('森空岛没有返回可识别的干员记录')
 
     selectedAccountLabel.value = [account.nickName || account.uid, account.channelName]

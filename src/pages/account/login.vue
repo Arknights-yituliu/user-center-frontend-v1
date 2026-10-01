@@ -3,7 +3,8 @@ import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {getUcToken, setUcSession, ucRequest} from "../../api/uc/uc-api";
+import {getUcToken, setUcSession} from "../../api/user-center/request";
+import {getOAuthTicket, login, sendEmailCode} from "../../api/user-center/user-api";
 
 const props = defineProps({
     embedded: {
@@ -47,7 +48,7 @@ async function redirectIfOAuth() {
         return
     }
     try {
-        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket"})
+        const resp = await getOAuthTicket()
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
@@ -108,12 +109,7 @@ async function sendVerificationCode() {
     }
     sendCodeLoading.value = true
     try {
-        await ucRequest({
-            method: "POST",
-            url: "/auth/send-code",
-            data: {email, usage: "login"},
-            auth: false,
-        })
+        await sendEmailCode(email, "login")
         createMessage({text: "验证码发送成功", type: "success"})
         // 发送成功后开始 60s 倒计时
         codeCountdown.value = 60
@@ -196,12 +192,7 @@ async function toLogin() {
             payload.email = form.email
             payload.verificationCode = form.verificationCode
         }
-        const resp = await ucRequest({
-            method: "POST",
-            url: "/auth/login",
-            data: payload,
-            auth: false,
-        })
+        const resp = await login(payload)
         handleLoginSuccess(resp.data || {})
     } catch {
         // 错误提示已在 ucRequest 内部统一弹出

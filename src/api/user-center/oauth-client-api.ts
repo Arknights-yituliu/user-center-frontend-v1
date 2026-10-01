@@ -1,4 +1,5 @@
-import { ucRequest, type ConsentScopeItem, type UcResponse } from './uc-api'
+import { ucRequest, type UcResponse } from './request'
+import type { ConsentScopeItem } from './user-api'
 
 /** OAuth 客户端认证方式 */
 export type OAuthClientAuthMethod = 'none' | 'client_secret_post'
