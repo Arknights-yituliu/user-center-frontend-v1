@@ -8,6 +8,7 @@ import UIPreviewView from '../pages/UIPreviewView.vue'
 import UserGuideView from '../pages/UserGuideView.vue'
 import DeveloperView from '../pages/DeveloperView.vue'
 import CommonDataView from '../pages/CommonDataView.vue'
+import GameDataView from '../pages/GameDataView.vue'
 import AboutView from '../pages/AboutView.vue'
 import LoginView from '../pages/account/login.vue'
 import OAuthLoginView from '../pages/account/oauth-login.vue'
@@ -107,6 +108,16 @@ const router = createRouter({
       },
     },
     { path: '/user/common-data', redirect: { name: 'COMMON_DATA' } },
+    {
+      // 游戏数据管理：独立于通用数据维护的 UC 账号数据链路
+      path: '/arknights-game-data',
+      name: 'GAME_DATA',
+      component: GameDataView,
+      meta: {
+        title: '游戏数据',
+      },
+    },
+    { path: '/user/arknights-game-data', redirect: { name: 'GAME_DATA' } },
     {
       // 原版项目入口：完整旧版站点统一挂在 /classic/ 下
       path: '/classic/',

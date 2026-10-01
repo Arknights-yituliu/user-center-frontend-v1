@@ -20,6 +20,7 @@ import {
   SklandRequestError,
 } from '../api/skland-operator-api'
 import { createMessage } from '../utils/message'
+import { saveAkOperators } from '../api/user-center/ak-account-api'
 import {
   getCredAndSecret,
   getPlayBindingV2,
@@ -34,6 +35,9 @@ interface OperatorRecord extends OperatorDataRecord {
   name: string
 }
 
+//新导入逻辑起始
+
+//新导入逻辑结束
 const operatorRows = reactive<OperatorRecord[]>([])
 const importDialog = ref(false)
 const importText = ref('')
@@ -473,6 +477,12 @@ async function importFromSklandAccount(account: SklandBindingAccount): Promise<v
     const records = mapSklandOperatorsToRows(warehouse.operators)
     if (!records.length) throw new Error('森空岛没有返回可识别的干员记录')
 
+    // 选定账号后即把干员数据导入到当前用户名下（UC /user/ak-accounts/operators/save）
+    const saved = await saveAkOperators({
+      playerInfo: warehouse.playerInfo,
+      operators: warehouse.operators,
+    })
+
     selectedAccountLabel.value = [account.nickName || account.uid, account.channelName]
       .filter(Boolean)
       .join(' · ')
@@ -480,7 +490,10 @@ async function importFromSklandAccount(account: SklandBindingAccount): Promise<v
     accountDialog.value = false
     pendingSklandCredential.value = null
     bindingAccounts.value = []
-    createMessage({ text: `已载入 ${records.length} 名干员`, type: 'success' })
+    createMessage({
+      text: `已导入 ${records.length} 名干员（新增 ${saved.data.createdCount}、更新 ${saved.data.updatedCount}）`,
+      type: 'success',
+    })
   } catch (error) {
     operatorLoadError.value = getErrorMessage(error, '森空岛干员数据读取失败')
   } finally {
