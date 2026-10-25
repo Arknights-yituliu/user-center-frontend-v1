@@ -280,7 +280,7 @@ function projectNameStyle(name: string): Record<string, string> {
     <section class="project-section" aria-labelledby="common-data-management-title">
       <div class="project-section-title-row">
         <h2 id="common-data-management-title" class="project-section-title">通用数据管理</h2>
-        <RouterLink class="project-visit-button" to="/common-data">
+        <RouterLink class="project-visit-button" to="/arknights-game-data">
           通用数据维护
           <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
         </RouterLink>

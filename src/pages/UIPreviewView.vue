@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-type PreviewPageId = 'projects' | 'common-data' | 'user-guide' | 'developer' | 'color' | 'components'
+type PreviewPageId = 'projects' | 'game-data' | 'user-guide' | 'developer' | 'color' | 'components'
 
 interface TitlePreset {
   id: PreviewPageId
@@ -27,10 +27,10 @@ const pagePresets: TitlePreset[] = [
     description: '管理各个工具对数据的访问',
   },
   {
-    id: 'common-data',
-    label: '通用数据维护',
-    kicker: 'COMMON DATA',
-    titleA: '通用数据维护',
+    id: 'game-data',
+    label: '游戏数据管理',
+    kicker: 'GAME DATA',
+    titleA: '游戏数据管理',
     description: '维护干员信息等通用于各大项目的数据',
   },
   {
