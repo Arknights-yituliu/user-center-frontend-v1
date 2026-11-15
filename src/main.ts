@@ -10,6 +10,8 @@ import './assets/css/atomic/flex.scss'
 import './assets/css/atomic/color.scss'
 import './assets/css/atomic/font.scss'
 import './assets/css/atomic/opacity.scss'
+// 干员头像图片直连（头像/技能/模组资源统一走 arknights-resource.ts 生成的地址）
+import './assets/css/operator-avatar.css'
 
 const app = createApp(App)
 

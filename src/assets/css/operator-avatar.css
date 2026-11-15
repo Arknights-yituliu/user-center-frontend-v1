@@ -1,0 +1,45 @@
+/**
+ * 干员头像图片直连样式（替代精灵图组件）
+ *
+ * 用法：
+ *   <img class="operator-avatar-img" :src="getOperatorAvatarUrl(id)"
+ *        :style="getOperatorAvatarStyle({ size: 40, mobileSize: 34, rarity, bordered: true })">
+ *
+ * 尺寸通过内联 CSS 变量传入：--avatar-size（桌面）/ --avatar-mobile-size（600px 以下）；
+ * 稀有度描边渐变由 getOperatorAvatarStyle 生成，样式见 src/utils/arknights-resource.ts。
+ */
+.operator-avatar-img {
+  display: inline-block;
+  flex: none;
+  width: var(--avatar-size, 40px);
+  height: var(--avatar-size, 40px);
+  vertical-align: middle;
+  object-fit: cover;
+  background: var(--site-paper, #eaf7f7);
+}
+
+/* 稀有度描边：渐变只画在透明边框层，不铺满头像背景 */
+.operator-avatar-img--bordered {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background:
+    linear-gradient(var(--site-surface, #fffdf6), var(--site-surface, #fffdf6)) padding-box,
+    var(--avatar-border-gradient) border-box;
+}
+
+/* 圆形头像 */
+.operator-avatar-img--rounded {
+  border-radius: 100px;
+}
+
+@media screen and (max-width: 600px) {
+  .operator-avatar-img {
+    width: var(--avatar-mobile-size, var(--avatar-size, 40px));
+    height: var(--avatar-mobile-size, var(--avatar-size, 40px));
+  }
+
+  .operator-avatar-img--bordered {
+    border-width: 1px;
+  }
+}
