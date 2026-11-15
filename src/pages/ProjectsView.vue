@@ -1,166 +1,276 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import {
-  projects,
-  type Project,
-  type ProjectConnectionMode,
-  type ProjectConnectionStatus,
-} from '../data/projects'
 import SecondaryPageHeader from '../components/SecondaryPageHeader.vue'
+import { getUcToken } from '../api/user-center/request'
+import {
+  listCustomTokens,
+  revokeCustomToken,
+  signCustomToken,
+  type CustomTokenRecordVO,
+} from '../api/user-center/custom-token-api'
 import { createMessage } from '../utils/message'
 
-type MockProject = Project
+type CommonTokenScope = 'read' | 'write'
 
-const mockProjects = reactive<MockProject[]>(
-  projects.map((project) => ({
-    ...project,
-    connection: {
-      ...project.connection,
-      dataItems: [...project.connection.dataItems],
-      permissionItems: [...project.connection.permissionItems],
-    },
-  })),
-)
-
-const visibleTokenSlug = ref<string | null>(null)
-
-const modeMeta: Record<ProjectConnectionMode, { label: string; icon: string; tone: string }> = {
-  oauth: {
-    label: 'OAuth 授权',
-    icon: 'mdi-shield-key-outline',
-    tone: 'oauth',
-  },
-  token: {
-    label: '工具专属 Token',
-    icon: 'mdi-key-chain-variant',
-    tone: 'token',
-  },
-  'browser-cache': {
-    label: '浏览器缓存同步',
-    icon: 'mdi-cached',
-    tone: 'cache',
-  },
-}
-
-type CommonTokenGroup = 'operator' | 'repository' | 'gacha'
-type CommonTokenScope =
-  | 'operator-read'
-  | 'operator-write'
-  | 'repository-read'
-  | 'repository-write'
-  | 'gacha-read'
-  | 'gacha-write'
-
+/** 一档权限对应的已签发令牌（由后端自定义令牌列表派生，不在前端伪造） */
 type CommonTokenConnection = {
-  id: string
   scope: CommonTokenScope
+  /** access_token 明文 */
   token: string
+  /** 签发时填写的自定义名称 */
+  name: string
+  /** 该档对应的后端 OAuth scope 标识 */
+  scopeCode: string
+  /** 该令牌实际携带的权限范围（逗号分隔，可能包含多条 scope） */
+  scopes: string
+  /** 剩余有效期（秒），小于等于 0 即已过期 */
+  expiresInSeconds: number
 }
 
 type CommonDataProject = {
   id: string
   name: string
+  /** 各档签发的 scope 标识：读 / 写 */
+  scopeCodes: Record<CommonTokenScope, string>
   tokenConnections: CommonTokenConnection[]
 }
 
-const commonTokenGroups: Array<{ id: CommonTokenGroup; scopes: CommonTokenScope[] }> = [
-  {
-    id: 'operator',
-    scopes: ['operator-read', 'operator-write'],
-  },
-  {
-    id: 'repository',
-    scopes: ['repository-read', 'repository-write'],
-  },
-  {
-    id: 'gacha',
-    scopes: ['gacha-read', 'gacha-write'],
-  },
-]
+/** 通用数据的授权粒度只有读、写两档 */
+const commonTokenScopes: CommonTokenScope[] = ['read', 'write']
 
 const commonTokenMeta: Record<
   CommonTokenScope,
   { label: string; buttonLabel: string }
 > = {
-  'operator-read': {
-    label: '干员读token',
-    buttonLabel: '生成干员读token',
+  read: {
+    label: '读token',
+    buttonLabel: '生成读token',
   },
-  'operator-write': {
-    label: '干员写token',
-    buttonLabel: '生成干员写token',
-  },
-  'repository-read': {
-    label: '仓库读token',
-    buttonLabel: '生成仓库读token',
-  },
-  'repository-write': {
-    label: '仓库写token',
-    buttonLabel: '生成仓库写token',
-  },
-  'gacha-read': {
-    label: '抽卡读token',
-    buttonLabel: '生成抽卡读token',
-  },
-  'gacha-write': {
-    label: '抽卡写token',
-    buttonLabel: '生成抽卡写token',
+  write: {
+    label: '写token',
+    buttonLabel: '生成写token',
   },
 }
+
+/** 默认有效期 180 天 */
+const DEFAULT_TOKEN_EXPIRY = 180 * 86400
+
+/** 「长期」档：实际按 5 年（365 天 × 5）签发，展示上按长期处理 */
+const LONG_TERM_EXPIRY = 5 * 365 * 86400
+
+/** 可选有效期（秒）：直签接口的 expires_in 必填，由用户自行决定 */
+const tokenExpiryOptions = [
+  { label: '1 天', value: 86400 },
+  { label: '7 天', value: 7 * 86400 },
+  { label: '30 天', value: 30 * 86400 },
+  { label: '90 天', value: 90 * 86400 },
+  { label: '180 天', value: DEFAULT_TOKEN_EXPIRY },
+  { label: '长期', value: LONG_TERM_EXPIRY },
+]
 
 const commonDataProjects = reactive<CommonDataProject[]>([
   {
     id: 'arknights',
     name: '明日方舟',
+    scopeCodes: { read: 'ak-data.read', write: 'ak-data.write' },
     tokenConnections: [],
   },
   {
     id: 'endfield',
     name: '明日方舟：终末地',
+    scopeCodes: { read: 'ef-data.read', write: 'ef-data.write' },
     tokenConnections: [],
   },
 ])
 
-const visibleCommonToken = ref<{ projectId: string; scope: CommonTokenScope } | null>(null)
+/** 当前展开明文的令牌：按令牌值定位，避免同一档多条记录（含过期）互相影响 */
+const visibleToken = ref<string | null>(null)
+const isLoggedIn = ref(Boolean(getUcToken()))
+const tokensLoading = ref(false)
+const tokenExpiry = ref(DEFAULT_TOKEN_EXPIRY)
+/** 仅显示未过期令牌，默认开启；关闭后连过期记录一起展示 */
+const onlyUnexpired = ref(true)
+/** 正在签发的档位标识（projectId-scope），用于按钮禁用与防重复提交 */
+const signingKey = ref<string | null>(null)
+/** 正在吊销的档位标识 */
+const revokingKey = ref<string | null>(null)
 
+/** 档位唯一键 */
+function tokenKey(project: CommonDataProject, scope: CommonTokenScope): string {
+  return `${project.id}-${scope}`
+}
+
+/** 取某档当前仍有效的令牌（已过期的视为没有，可重新生成） */
+function findActiveConnection(
+  project: CommonDataProject,
+  scope: CommonTokenScope,
+): CommonTokenConnection | undefined {
+  return project.tokenConnections.find(
+    (connection) => connection.scope === scope && connection.expiresInSeconds > 0,
+  )
+}
+
+/** 某档是否已有仍有效的令牌 */
 function hasCommonToken(project: CommonDataProject, scope: CommonTokenScope): boolean {
-  return project.tokenConnections.some((connection) => connection.scope === scope)
+  return Boolean(findActiveConnection(project, scope))
 }
 
-function generateCommonToken(project: CommonDataProject, scope: CommonTokenScope): void {
-  const existingToken = project.tokenConnections.find((connection) => connection.scope === scope)
-  const token = `slc_common_${project.id}_${scope}_${Math.random().toString(36).slice(2, 14)}`
+/** 按筛选条件返回要展示的令牌列表（默认只显示未过期的） */
+function visibleConnections(project: CommonDataProject): CommonTokenConnection[] {
+  return onlyUnexpired.value
+    ? project.tokenConnections.filter((connection) => connection.expiresInSeconds > 0)
+    : project.tokenConnections
+}
 
-  if (existingToken) {
-    existingToken.token = token
-  } else {
-    project.tokenConnections.push({
-      id: `common-token-${project.id}-${scope}`,
-      scope,
-      token,
+/** 拆分逗号分隔的 scope 字符串 */
+function splitScopes(scope: string): string[] {
+  return scope
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+/** scope 标识 → 中文说明（与后端「可选权限」目录一致，未收录的标识原样展示） */
+const scopeLabels: Record<string, string> = {
+  'user.read': '用户信息（读）',
+  'user.profile': '用户资料（读写）',
+  'config.read': '用户配置（读）',
+  'config.write': '用户配置（写）',
+  'gama-data.read': '全部游戏数据（读）',
+  'gama-data.write': '全部游戏数据（写）',
+  'ak-data.read': '明日方舟数据（读）',
+  'ak-data.write': '明日方舟数据（写）',
+  'ef-data.read': '终末地数据（读）',
+  'ef-data.write': '终末地数据（写）',
+  all: '全部权限',
+}
+
+/** 把令牌携带的 scope 串转成可读文案 */
+function scopeLabel(scope: string): string {
+  return splitScopes(scope)
+    .map((code) => scopeLabels[code] || code)
+    .join('、')
+}
+
+/**
+ * 判断一条签发记录是否覆盖目标档位：
+ * 同档标识、其 gama-data 上级范围、以及元范围 all 都视为覆盖
+ */
+function coversScope(recordScope: string, scopeCode: string): boolean {
+  const codes = splitScopes(recordScope)
+  const parent = scopeCode.replace(/^(ak|ef)-data\.(read|write)$/, 'gama-data.$2')
+  return codes.includes(scopeCode) || codes.includes(parent) || codes.includes('all')
+}
+
+/** 把后端签发记录映射到各卡片各档位（含已过期记录；未过期的排在前面） */
+function applyTokenRecords(records: CustomTokenRecordVO[]): void {
+  for (const project of commonDataProjects) {
+    const connections: CommonTokenConnection[] = []
+    // 一条记录可能同时覆盖读、写两档（scope 合并签发），只挂到先匹配到的档位，避免同一令牌展示两次
+    const seenTokens = new Set<string>()
+    for (const scope of commonTokenScopes) {
+      const scopeCode = project.scopeCodes[scope]
+      const matched = records.filter(
+        (record) => !seenTokens.has(record.token) && coversScope(record.scope, scopeCode),
+      )
+      const ordered = [
+        ...matched.filter((record) => record.expiresInSeconds > 0),
+        ...matched.filter((record) => record.expiresInSeconds <= 0),
+      ]
+      for (const record of ordered) {
+        seenTokens.add(record.token)
+        connections.push({
+          scope,
+          token: record.token,
+          name: record.name,
+          scopeCode,
+          scopes: record.scope,
+          expiresInSeconds: record.expiresInSeconds,
+        })
+      }
+    }
+    project.tokenConnections = connections
+  }
+}
+
+/** 拉取我的自定义令牌列表并回填各档位 */
+async function loadTokens(): Promise<void> {
+  if (!isLoggedIn.value) return
+  tokensLoading.value = true
+  try {
+    const response = await listCustomTokens()
+    applyTokenRecords(response.data || [])
+  } catch (error) {
+    const ucError = error as { code?: number } | null
+    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+      isLoggedIn.value = false
+      createMessage({ text: '登录已失效，请重新登录', type: 'warning' })
+    }
+  } finally {
+    tokensLoading.value = false
+  }
+}
+
+/**
+ * 签发令牌（POST /user/oauth/custom-tokens）
+ * 已存在时按「重置」处理：先签新的，成功后再吊销旧的，避免中途失败导致无可用令牌
+ */
+async function generateCommonToken(
+  project: CommonDataProject,
+  scope: CommonTokenScope,
+): Promise<void> {
+  const key = tokenKey(project, scope)
+  if (signingKey.value) return
+  const previous = findActiveConnection(project, scope)
+  signingKey.value = key
+  try {
+    const response = await signCustomToken({
+      expiresIn: tokenExpiry.value,
+      name: `${project.name}-${commonTokenMeta[scope].label}`,
+      scope: project.scopeCodes[scope],
     })
+    if (previous) {
+      await revokeCustomToken(previous.token).catch(() => undefined)
+    }
+    await loadTokens()
+    visibleToken.value = response.data?.access_token || null
+    createMessage({
+      text: `${project.name}${commonTokenMeta[scope].label}已${previous ? '重置' : '生成'}`,
+      type: 'success',
+    })
+  } catch {
+    // 业务错误（scope 超范围、client_id 缺失等）由 ucRequest 统一提示
+  } finally {
+    signingKey.value = null
   }
-
-  visibleCommonToken.value = { projectId: project.id, scope }
-  createMessage({
-    text: `${project.name}${commonTokenMeta[scope].label}已${existingToken ? '重置' : '生成'}`,
-    type: 'success',
-  })
 }
 
-function revokeCommonToken(project: CommonDataProject, connection: CommonTokenConnection): void {
-  const index = project.tokenConnections.findIndex((item) => item.id === connection.id)
-  if (index >= 0) project.tokenConnections.splice(index, 1)
-  if (
-    visibleCommonToken.value?.projectId === project.id &&
-    visibleCommonToken.value.scope === connection.scope
-  ) {
-    visibleCommonToken.value = null
+/** 吊销令牌（POST /user/oauth/custom-tokens/revoke），立即失效并从列表移除 */
+async function revokeCommonToken(
+  project: CommonDataProject,
+  connection: CommonTokenConnection,
+): Promise<void> {
+  if (revokingKey.value) return
+  revokingKey.value = tokenKey(project, connection.scope)
+  try {
+    await revokeCustomToken(connection.token)
+    if (visibleToken.value === connection.token) {
+      visibleToken.value = null
+    }
+    await loadTokens()
+    createMessage({
+      text: `${project.name}${commonTokenMeta[connection.scope].label}已撤销`,
+      type: 'success',
+    })
+  } catch {
+    // 业务错误由 ucRequest 统一提示
+  } finally {
+    revokingKey.value = null
   }
-  createMessage({ text: `${project.name}${commonTokenMeta[connection.scope].label}已撤销`, type: 'success' })
 }
 
+/** 复制令牌明文 */
 async function copyCommonToken(connection: CommonTokenConnection): Promise<void> {
   try {
     await navigator.clipboard.writeText(connection.token)
@@ -170,91 +280,51 @@ async function copyCommonToken(connection: CommonTokenConnection): Promise<void>
   }
 }
 
+/** 脱敏展示令牌：保留头部与尾部便于辨认 */
 function maskedCommonToken(connection: CommonTokenConnection): string {
-  return `${connection.token.slice(0, 9)}********${connection.token.slice(-4)}`
-}
-
-function toggleCommonTokenVisibility(project: CommonDataProject, scope: CommonTokenScope): void {
-  if (
-    visibleCommonToken.value?.projectId === project.id &&
-    visibleCommonToken.value.scope === scope
-  ) {
-    visibleCommonToken.value = null
-    return
-  }
-  visibleCommonToken.value = { projectId: project.id, scope }
-}
-
-function updateConnection(
-  project: MockProject,
-  status: ProjectConnectionStatus,
-  statusLabel: string,
-  statusHint: string,
-): void {
-  project.connection.status = status
-  project.connection.statusLabel = statusLabel
-  project.connection.statusHint = statusHint
-}
-
-function generateToken(project: MockProject): void {
-  if (project.connection.mode !== 'token') return
-  project.connection.token = `slc_demo_${Math.random().toString(36).slice(2, 14)}`
-  updateConnection(project, 'token-ready', 'Token 已生成', '等待工具调用')
-  visibleTokenSlug.value = project.slug
-  createMessage({ text: '示例 Token 已生成', type: 'success' })
-}
-
-function authorizeProject(project: MockProject): void {
-  if (project.connection.mode !== 'oauth') return
-  updateConnection(project, 'authorized', '已授权', '最近访问：刚刚')
-  createMessage({ text: '示例授权已添加', type: 'success' })
-}
-
-function revokeProjectOauth(project: MockProject): void {
-  if (project.connection.mode !== 'oauth') return
-  updateConnection(project, 'revoked', '未授权', '等待工具重新发起授权')
-  createMessage({ text: '示例授权已撤销', type: 'success' })
-}
-
-function resetToken(project: MockProject): void {
-  if (project.connection.mode !== 'token') return
-  project.connection.token = `slc_demo_${Math.random().toString(36).slice(2, 14)}`
-  updateConnection(project, 'token-ready', 'Token 已重置', '等待工具调用')
-  visibleTokenSlug.value = project.slug
-  createMessage({ text: '示例 Token 已重置', type: 'success' })
-}
-
-function revokeToken(project: MockProject): void {
-  if (project.connection.mode !== 'token') return
-  project.connection.token = undefined
-  updateConnection(project, 'revoked', 'Token 已撤销', '需要重新生成 Token')
-  visibleTokenSlug.value = null
-  createMessage({ text: '示例 Token 已撤销', type: 'success' })
-}
-
-async function copyToken(project: MockProject): Promise<void> {
-  const token = project.connection.token
-  if (!token) return
-
-  try {
-    await navigator.clipboard.writeText(token)
-    createMessage({ text: 'Token 已复制', type: 'success' })
-  } catch {
-    createMessage({ text: '复制失败，请手动选中 Token', type: 'warning' })
-  }
-}
-
-function maskedToken(project: MockProject): string {
-  const token = project.connection.token
-  if (!token) return ''
+  const { token } = connection
+  if (token.length <= 16) return `${token.slice(0, 4)}********`
   return `${token.slice(0, 9)}********${token.slice(-4)}`
+}
+
+/** 剩余有效期文案：超过 1 年一律显示「长期」 */
+function remainingText(seconds: number): string {
+  if (seconds <= 0) return '已过期'
+  if (seconds > 365 * 86400) return '长期'
+  if (seconds >= 86400) return `剩余 ${Math.floor(seconds / 86400)} 天`
+  if (seconds >= 3600) return `剩余 ${Math.floor(seconds / 3600)} 小时`
+  return `剩余 ${Math.max(1, Math.floor(seconds / 60))} 分钟`
+}
+
+/** 某档是否正在签发 */
+function isSigning(project: CommonDataProject, scope: CommonTokenScope): boolean {
+  return signingKey.value === tokenKey(project, scope)
+}
+
+/** 某档是否正在吊销 */
+function isRevoking(project: CommonDataProject, scope: CommonTokenScope): boolean {
+  return revokingKey.value === tokenKey(project, scope)
+}
+
+/** 切换某条令牌明文的显示 / 隐藏 */
+function toggleTokenVisibility(connection: CommonTokenConnection): void {
+  visibleToken.value = isTokenVisible(connection) ? null : connection.token
+}
+
+/** 是否展示某条令牌的明文 */
+function isTokenVisible(connection: CommonTokenConnection): boolean {
+  return visibleToken.value === connection.token
 }
 
 function projectNameStyle(name: string): Record<string, string> {
   return { '--project-name-length': String(Array.from(name).length) }
 }
 
+onMounted(() => {
+  void loadTokens()
+})
 </script>
+
 
 <template>
   <main class="projects-page">
@@ -280,6 +350,18 @@ function projectNameStyle(name: string): Record<string, string> {
     <section class="project-section" aria-labelledby="common-data-management-title">
       <div class="project-section-title-row">
         <h2 id="common-data-management-title" class="project-section-title">通用数据管理</h2>
+        <label class="token-expiry">
+          <span>有效期</span>
+          <select v-model.number="tokenExpiry" class="token-expiry-select">
+            <option v-for="option in tokenExpiryOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label class="token-filter">
+          <input v-model="onlyUnexpired" type="checkbox" />
+          仅显示未过期
+        </label>
         <RouterLink class="project-visit-button" to="/arknights-game-data">
           通用数据维护
           <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
@@ -298,52 +380,70 @@ function projectNameStyle(name: string): Record<string, string> {
                 <v-icon icon="mdi-key-chain-variant" size="27"></v-icon>
               </div>
               <div class="project-identity-copy" :style="projectNameStyle(commonProject.name)">
-                <p>干员/仓库/抽卡数据</p>
+                <p>游戏数据</p>
                 <h2>{{ commonProject.name }}</h2>
               </div>
             </div>
           </div>
 
           <div class="project-actions">
-            <template v-for="group in commonTokenGroups" :key="group.id">
-              <div class="common-token-group">
-                <template v-for="scope in group.scopes" :key="scope">
-                  <button
-                    v-if="!hasCommonToken(commonProject, scope)"
-                    class="primary-button"
-                    type="button"
-                    @click="generateCommonToken(commonProject, scope)"
-                  >
-                    <v-icon icon="mdi-key-plus" size="16"></v-icon>
-                    {{ commonTokenMeta[scope].buttonLabel }}
-                  </button>
-                </template>
-              </div>
-            </template>
+            <div v-if="!isLoggedIn" class="common-token-group">
+              <RouterLink class="secondary-button" :to="{ name: 'LOGIN' }">
+                <v-icon icon="mdi-login-variant" size="16"></v-icon>
+                登录后管理
+              </RouterLink>
+            </div>
+            <div v-else class="common-token-group">
+              <button
+                v-for="scope in commonTokenScopes"
+                v-show="!hasCommonToken(commonProject, scope)"
+                :key="scope"
+                class="primary-button"
+                type="button"
+                :disabled="isSigning(commonProject, scope)"
+                @click="generateCommonToken(commonProject, scope)"
+              >
+                <v-icon icon="mdi-key-plus" size="16"></v-icon>
+                {{ isSigning(commonProject, scope) ? '签发中…' : commonTokenMeta[scope].buttonLabel }}
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="project-content">
-          <div v-if="!commonProject.tokenConnections.length" class="content-empty">
-            <span>暂无已同步的内容</span>
+          <div v-if="tokensLoading" class="content-empty">
+            <span>正在加载…</span>
+          </div>
+          <div v-else-if="!isLoggedIn" class="content-empty">
+            <span>登录后可查看与管理 Token</span>
+          </div>
+          <div v-else-if="!visibleConnections(commonProject).length" class="content-empty">
+            <span v-if="commonProject.tokenConnections.length">暂无未过期的 Token（已隐藏过期记录）</span>
+            <span v-else>暂无已生成的 Token</span>
           </div>
           <div v-else class="content-list">
             <div
-              v-for="connection in commonProject.tokenConnections"
-              :key="connection.id"
+              v-for="connection in visibleConnections(commonProject)"
+              :key="connection.token"
               class="content-item content-item-token"
+              :class="{ 'content-item-expired': connection.expiresInSeconds <= 0 }"
             >
               <div class="content-item-main">
-                <v-icon class="content-item-icon" icon="mdi-key-chain-variant" size="18"></v-icon>
+                <v-icon
+                  class="content-item-icon"
+                  :icon="connection.expiresInSeconds > 0 ? 'mdi-key-chain-variant' : 'mdi-key-outline'"
+                  size="18"
+                ></v-icon>
                 <div class="content-item-copy">
-                  <span>{{ commonTokenMeta[connection.scope].label }}</span>
+                  <span class="content-item-name" :title="connection.name">
+                    {{ connection.name || commonTokenMeta[connection.scope].label }}
+                  </span>
+                  <span class="content-item-meta" :title="connection.scopes">
+                    {{ scopeLabel(connection.scopes) }} ·
+                    {{ remainingText(connection.expiresInSeconds) }}
+                  </span>
                   <code>
-                    {{
-                      visibleCommonToken?.projectId === commonProject.id &&
-                      visibleCommonToken.scope === connection.scope
-                        ? connection.token
-                        : maskedCommonToken(connection)
-                    }}
+                    {{ isTokenVisible(connection) ? connection.token : maskedCommonToken(connection) }}
                   </code>
                 </div>
               </div>
@@ -351,27 +451,12 @@ function projectNameStyle(name: string): Record<string, string> {
                 <button
                   class="icon-button"
                   type="button"
-                  :aria-label="
-                    visibleCommonToken?.projectId === commonProject.id &&
-                    visibleCommonToken.scope === connection.scope
-                      ? '隐藏 Token'
-                      : '显示 Token'
-                  "
-                  :title="
-                    visibleCommonToken?.projectId === commonProject.id &&
-                    visibleCommonToken.scope === connection.scope
-                      ? '隐藏 Token'
-                      : '显示 Token'
-                  "
-                  @click="toggleCommonTokenVisibility(commonProject, connection.scope)"
+                  :aria-label="isTokenVisible(connection) ? '隐藏 Token' : '显示 Token'"
+                  :title="isTokenVisible(connection) ? '隐藏 Token' : '显示 Token'"
+                  @click="toggleTokenVisibility(connection)"
                 >
                   <v-icon
-                    :icon="
-                      visibleCommonToken?.projectId === commonProject.id &&
-                      visibleCommonToken.scope === connection.scope
-                        ? 'mdi-eye-off-outline'
-                        : 'mdi-eye-outline'
-                    "
+                    :icon="isTokenVisible(connection) ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
                     size="16"
                   ></v-icon>
                 </button>
@@ -385,10 +470,12 @@ function projectNameStyle(name: string): Record<string, string> {
                   <v-icon icon="mdi-content-copy" size="16"></v-icon>
                 </button>
                 <button
+                  v-if="connection.expiresInSeconds > 0"
                   class="icon-button"
                   type="button"
                   aria-label="重置 Token"
                   title="重置 Token"
+                  :disabled="isSigning(commonProject, connection.scope)"
                   @click="generateCommonToken(commonProject, connection.scope)"
                 >
                   <v-icon icon="mdi-autorenew" size="16"></v-icon>
@@ -398,127 +485,8 @@ function projectNameStyle(name: string): Record<string, string> {
                   type="button"
                   aria-label="撤销 Token"
                   title="撤销 Token"
+                  :disabled="isRevoking(commonProject, connection.scope)"
                   @click="revokeCommonToken(commonProject, connection)"
-                >
-                  <v-icon icon="mdi-key-remove" size="16"></v-icon>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        </article>
-      </div>
-    </section>
-
-    <section
-      class="project-section project-section-dedicated"
-      aria-labelledby="dedicated-data-management-title"
-    >
-      <h2 id="dedicated-data-management-title" class="project-section-title">专属数据管理</h2>
-      <div class="project-grid" aria-label="专属数据连接列表">
-        <article
-          v-for="project in mockProjects"
-          :key="project.slug"
-          class="project-card"
-          :class="`project-card-${modeMeta[project.connection.mode].tone}`"
-        >
-        <div class="project-sidebar">
-          <div class="project-info">
-            <div class="project-identity">
-              <div class="project-icon">
-                <v-icon :icon="project.icon" size="27"></v-icon>
-              </div>
-              <div class="project-identity-copy" :style="projectNameStyle(project.name)">
-                <p>{{ project.category }}</p>
-                <h2>{{ project.name }}</h2>
-              </div>
-            </div>
-            <button class="project-visit-button" type="button">
-              访问项目
-              <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
-            </button>
-          </div>
-
-          <div class="project-actions">
-            <div
-              v-if="project.connection.mode === 'oauth' && project.connection.status === 'revoked'"
-              class="project-action-row"
-            >
-              <button class="secondary-button" type="button" @click="authorizeProject(project)">
-                <v-icon icon="mdi-shield-key-outline" size="16"></v-icon>
-                添加 OAuth 授权
-              </button>
-              <span class="project-action-description">通过 OAuth 授权工具访问数据</span>
-            </div>
-            <div v-if="project.connection.mode === 'token' && !project.connection.token" class="project-action-row">
-              <button class="primary-button" type="button" @click="generateToken(project)">
-                <v-icon icon="mdi-key-plus" size="16"></v-icon>
-                生成 Token
-              </button>
-              <span class="project-action-description">生成供工具访问数据的专属 Token</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="project-content">
-          <div
-            v-if="
-              project.connection.mode === 'browser-cache' ||
-              project.connection.status === 'not-synced' ||
-              project.connection.status === 'revoked'
-            "
-            class="content-empty"
-          >
-            <span>暂无已同步的内容</span>
-          </div>
-          <div v-else class="content-list">
-            <div v-for="item in project.connection.dataItems" :key="item" class="content-item">
-              <v-icon class="content-item-icon" icon="mdi-database-outline" size="18"></v-icon>
-              <span>{{ item }}</span>
-              <div class="content-item-actions">
-                <button
-                  v-if="project.connection.mode === 'oauth'"
-                  class="icon-button icon-button-danger"
-                  type="button"
-                  aria-label="撤销 OAuth 授权"
-                  title="撤销 OAuth 授权"
-                  @click="revokeProjectOauth(project)"
-                >
-                  <v-icon icon="mdi-link-off" size="16"></v-icon>
-                </button>
-              </div>
-            </div>
-
-            <div v-if="project.connection.token" class="content-item content-item-token">
-              <div class="content-item-main">
-                <v-icon class="content-item-icon" icon="mdi-key-chain-variant" size="18"></v-icon>
-                <div class="content-item-copy">
-                  <span>工具专属 Token</span>
-                  <code>{{ visibleTokenSlug === project.slug ? project.connection.token : maskedToken(project) }}</code>
-                </div>
-              </div>
-              <div class="content-item-actions">
-                <button
-                  class="icon-button"
-                  type="button"
-                  :aria-label="visibleTokenSlug === project.slug ? '隐藏 Token' : '显示 Token'"
-                  :title="visibleTokenSlug === project.slug ? '隐藏 Token' : '显示 Token'"
-                  @click="visibleTokenSlug = visibleTokenSlug === project.slug ? null : project.slug"
-                >
-                  <v-icon :icon="visibleTokenSlug === project.slug ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" size="16"></v-icon>
-                </button>
-                <button class="icon-button" type="button" aria-label="复制 Token" title="复制 Token" @click="copyToken(project)">
-                  <v-icon icon="mdi-content-copy" size="16"></v-icon>
-                </button>
-                <button class="icon-button" type="button" aria-label="重置 Token" title="重置 Token" @click="resetToken(project)">
-                  <v-icon icon="mdi-autorenew" size="16"></v-icon>
-                </button>
-                <button
-                  class="icon-button icon-button-danger"
-                  type="button"
-                  aria-label="撤销 Token"
-                  title="撤销 Token"
-                  @click="revokeToken(project)"
                 >
                   <v-icon icon="mdi-key-remove" size="16"></v-icon>
                 </button>
@@ -837,12 +805,6 @@ function projectNameStyle(name: string): Record<string, string> {
   margin-top: 40px;
 }
 
-.project-section-dedicated .project-visit-button,
-.project-section-dedicated .primary-button,
-.project-section-dedicated .secondary-button {
-  width: 150px;
-}
-
 .project-grid {
   display: grid;
   gap: 16px;
@@ -863,10 +825,6 @@ function projectNameStyle(name: string): Record<string, string> {
 
 .project-card-token {
   border-left-color: var(--site-pink);
-}
-
-.project-card-cache {
-  border-left-color: var(--site-green);
 }
 
 .project-sidebar {
@@ -904,14 +862,6 @@ function projectNameStyle(name: string): Record<string, string> {
   border-top: 1px solid var(--site-line);
 }
 
-.project-action-row {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
 .common-token-group {
   display: flex;
   align-items: center;
@@ -922,13 +872,6 @@ function projectNameStyle(name: string): Record<string, string> {
 
 .common-token-group .primary-button {
   white-space: nowrap;
-}
-
-.project-action-description {
-  min-width: 0;
-  color: var(--site-muted);
-  font-size: 11px;
-  line-height: 1.45;
 }
 
 .project-identity {
@@ -955,10 +898,6 @@ function projectNameStyle(name: string): Record<string, string> {
   font-weight: 750;
 }
 
-.project-info > .project-visit-button {
-  align-self: center;
-}
-
 .project-visit-button:hover {
   border-color: var(--site-accent);
   color: var(--site-accent);
@@ -967,6 +906,56 @@ function projectNameStyle(name: string): Record<string, string> {
 .project-visit-button:focus-visible {
   outline: 2px solid var(--site-accent);
   outline-offset: 4px;
+}
+
+/* 有效期选择：与标题行的次级按钮同高同风格 */
+.token-expiry {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  color: var(--site-muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.token-expiry-select {
+  min-height: 30px;
+  padding: 6px 9px;
+  border: 1px solid var(--site-line);
+  border-radius: 4px;
+  background: var(--site-paper);
+  color: var(--site-ink);
+  cursor: pointer;
+  font: inherit;
+}
+
+.token-expiry-select:hover,
+.token-expiry-select:focus-visible {
+  border-color: var(--site-accent);
+  color: var(--site-accent);
+  outline: none;
+}
+
+/* 过期筛选：默认勾选「仅显示未过期」 */
+.token-filter {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 6px;
+  color: var(--site-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  user-select: none;
+}
+
+.token-filter input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--site-accent);
+  cursor: pointer;
 }
 
 .project-icon {
@@ -983,11 +972,6 @@ function projectNameStyle(name: string): Record<string, string> {
 .project-card-token .project-icon {
   background: #ffe7ef;
   color: #dd5d8c;
-}
-
-.project-card-cache .project-icon {
-  background: #def6ef;
-  color: #1d9e91;
 }
 
 .project-identity-copy {
@@ -1057,6 +1041,17 @@ function projectNameStyle(name: string): Record<string, string> {
   color: #dd5d8c;
 }
 
+/* 过期令牌：整行降饱和，与仍有效的令牌区分 */
+.content-item-expired {
+  opacity: 0.62;
+}
+
+.content-item-expired .content-item-icon,
+.content-item-expired .content-item-copy > span,
+.content-item-expired .content-item-copy code {
+  color: var(--site-muted);
+}
+
 .content-item-main {
   display: flex;
   align-items: center;
@@ -1068,13 +1063,25 @@ function projectNameStyle(name: string): Record<string, string> {
 .content-item-copy {
   display: grid;
   min-width: 0;
-  gap: 3px;
+  gap: 2px;
 }
 
-.content-item-copy > span {
+.content-item-name {
+  overflow: hidden;
   color: var(--site-ink);
   font-size: 12px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.content-item-meta {
+  overflow: hidden;
+  color: var(--site-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-item-copy code {
@@ -1160,6 +1167,15 @@ function projectNameStyle(name: string): Record<string, string> {
 .icon-button:hover {
   background: var(--site-accent-soft);
   color: var(--site-accent);
+}
+
+/* 请求进行中：按钮置灰并禁止重复点击 */
+.primary-button:disabled,
+.secondary-button:disabled,
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: none;
 }
 
 @media (max-width: 850px) {
