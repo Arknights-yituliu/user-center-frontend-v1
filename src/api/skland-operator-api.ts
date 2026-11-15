@@ -205,7 +205,7 @@ async function createSklandHeaders(
   }
 }
 
-async function requestSkland<T>(
+export async function requestSkland<T>(
   path: string,
   query: string,
   credential: SklandCredential,

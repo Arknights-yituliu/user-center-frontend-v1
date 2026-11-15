@@ -13,7 +13,8 @@ const mobileNavigationOpen = ref(false)
 const siteNavigation = [
   { to: '/home', label: '个人中心', icon: 'mdi-account-circle-outline' },
   { to: '/projects', label: '工具列表', icon: 'mdi-view-grid-outline' },
-  { to: '/arknights-game-data', label: '游戏数据', icon: 'mdi-gamepad-variant-outline' },
+  { to: '/arknights-game-data', label: '游戏数据·明日方舟', icon: 'mdi-gamepad-variant-outline' },
+  { to: '/endfield-game-data', label: '游戏数据·终末地', icon: 'mdi-cube-outline' },
   { to: '/user-guide', label: '用户指南', icon: 'mdi-book-open-variant-outline' },
   { to: '/developer', label: '开发者中心', icon: 'mdi-console-line' },
   { to: '/about', label: '关于', icon: 'mdi-information-outline' },

@@ -366,6 +366,9 @@ onMounted(() => {
           通用数据维护
           <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
         </RouterLink>
+        <RouterLink class="project-visit-button" to="/read-token-test">
+          测试读取 Token
+        </RouterLink>
       </div>
       <div class="project-grid" aria-label="通用数据连接列表">
         <article

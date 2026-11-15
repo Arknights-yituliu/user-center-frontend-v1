@@ -114,6 +114,19 @@ const router = createRouter({
     },
     { path: '/user/arknights-game-data', redirect: { name: 'GAME_DATA' } },
     {
+      path: '/endfield-game-data',
+      name: 'ENDFIELD_GAME_DATA',
+      component: () => import('../pages/EndfieldGameDataView.vue'),
+      meta: { title: '游戏数据·终末地' },
+    },
+    { path: '/user/endfield-game-data', redirect: { name: 'ENDFIELD_GAME_DATA' } },
+    {
+      path: '/read-token-test',
+      name: 'READ_TOKEN_TEST',
+      component: () => import('../pages/ReadTokenTestView.vue'),
+      meta: { title: '读取 Token 测试' },
+    },
+    {
       // 原版项目入口：完整旧版站点统一挂在 /classic/ 下
       path: '/classic/',
       name: 'CLASSIC_HOME',
