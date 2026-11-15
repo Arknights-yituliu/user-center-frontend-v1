@@ -2,6 +2,7 @@ import axios from 'axios'
 import type { Method } from 'axios'
 import { createMessage } from '../../utils/message'
 import { UC_BASE_URL } from '../BASE_URL'
+import { UC_CLIENT_ID } from './client-id'
 
 /**
  * UC 会话存储与统一请求封装
@@ -99,6 +100,7 @@ export function clearUcSession(): void {
 /**
  * UC 接口统一请求封装：
  * - baseUrl 默认使用当前环境的 UC 请求地址，可传 baseUrl 覆盖
+ * - 所有请求统一携带 UC-Client-Id 头（平台客户端标识，见 client-id.ts）
  * - 请求头自动携带 Authorization: Bearer <token>（auth=true 且存在 token 时）
  * - 响应统一解析 { code, msg, data }，code !== 200 时提示错误并 reject
  * @param config 请求配置
@@ -113,7 +115,8 @@ export function ucRequest<T = unknown>({
   baseUrl = UC_BASE_URL,
 }: UcRequestConfig = {}): Promise<UcResponse<T>> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = {}
+    // 来源客户端标识：登录/注册据此写入会话，其余接口用于客户端维度隔离与审计
+    const headers: Record<string, string> = { 'UC-Client-Id': UC_CLIENT_ID }
     if (auth) {
       // 读取优先级：显式传入的 token（内存会话）> OAuth 授权流程临时 token > 正式会话 token
       const authToken = token || getUcTmpToken() || getUcToken()
