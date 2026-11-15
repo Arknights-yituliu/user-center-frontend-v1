@@ -7,6 +7,18 @@ export type OAuthClientAuthMethod = 'none' | 'client_secret_post'
 /** 当前服务端支持的授权类型 */
 export type OAuthGrantType = 'authorization_code' | 'refresh_token'
 
+/** 服务端维护的可自助配置权限（不包含管理员专用的 all）。 */
+export interface OAuthScopeVO {
+  code: string
+  name: string
+  description: string
+  sensitive: boolean
+}
+
+export function listOAuthClientScopes(): Promise<UcResponse<OAuthScopeVO[]>> {
+  return ucRequest<OAuthScopeVO[]>({ method: 'GET', url: '/user/oauth/client/scopes' })
+}
+
 /** OAuth 客户端信息（GET /user/oauth/client/list、GET /user/oauth/client/{clientId}） */
 export interface OAuthClientVO {
   /** 客户端 ID（系统分配，不可修改） */
@@ -25,8 +37,11 @@ export interface OAuthClientVO {
   requirePkce: boolean
   /** 授权时是否展示确认页（系统固定开启，不可编辑） */
   requireAuthConsent: boolean
-  /** 前端 CORS 白名单来源 */
+  /** 网站 Origin，须单独通过管理员审批后才进入运行时 CORS 白名单 */
   websiteOrigin: string | null
+  originApproved: boolean
+  /** 是否在刷新时换发 refresh token；默认固定凭证模式 */
+  rotateRefreshToken: boolean
   /** 所有者是否启用客户端 */
   ownerEnabled: boolean
   /** 管理员是否审批通过；false 表示待审批或已被管理员封禁 */
@@ -62,12 +77,14 @@ export interface RegisterClientParams {
   grantTypes: OAuthGrantType[]
   /** 客户端鉴权方式 */
   authMethod: OAuthClientAuthMethod
-  /** 网站 Origin，仅用于登记，不会自动加入服务端 CORS 白名单 */
+  /** 网站 Origin，登记或修改后等待管理员审批，通过后进入 CORS 白名单 */
   websiteOrigin?: string
   /** access token 有效期（秒），最小 60；不传使用服务端默认值 */
   accessTokenTtl?: number
   /** refresh token 有效期（秒），最小 300；不传使用服务端默认值 */
   refreshTokenTtl?: number
+  /** 刷新时是否换发 refresh token，默认 false */
+  rotateRefreshToken?: boolean
 }
 
 /** 更新客户端请求参数（clientId、authMethod、grantTypes、requirePkce、requireAuthConsent 不可改） */
@@ -78,6 +95,8 @@ export interface UpdateClientParams {
   websiteOrigin?: string
   accessTokenTtl?: number
   refreshTokenTtl?: number
+  /** 不传保持原设置 */
+  rotateRefreshToken?: boolean
 }
 
 /**

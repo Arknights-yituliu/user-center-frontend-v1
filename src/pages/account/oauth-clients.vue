@@ -5,6 +5,7 @@ import { getUcToken } from '../../api/user-center/request'
 import {
   deleteOAuthClient,
   listOAuthClients,
+  listOAuthClientScopes,
   registerOAuthClient,
   rotateOAuthClientSecret,
   setOAuthClientStatus,
@@ -12,18 +13,21 @@ import {
   type OAuthClientAuthMethod,
   type OAuthClientVO,
   type OAuthGrantType,
+  type OAuthScopeVO,
   type RegisterClientParams,
   type UpdateClientParams,
 } from '../../api/user-center/oauth-client-api'
 import { createMessage } from '../../utils/message'
+import OAuthScopeSelector from '../../components/OAuthScopeSelector.vue'
 
 interface ClientFormFields {
   clientName: string
   redirectUris: string
-  scopes: string
+  scopes: string[]
   websiteOrigin: string
   accessTokenTtl: string
   refreshTokenTtl: string
+  rotateRefreshToken: boolean
 }
 
 interface CreateClientForm extends ClientFormFields {
@@ -44,6 +48,9 @@ interface CredentialResult {
 const router = useRouter()
 const pageLoading = ref(false)
 const clients = ref<OAuthClientVO[]>([])
+const scopeOptions = ref<OAuthScopeVO[]>([])
+const scopesLoading = ref(false)
+const scopesError = ref(false)
 
 const createDialog = ref(false)
 const editDialog = ref(false)
@@ -67,19 +74,21 @@ const createForm = reactive<CreateClientForm>({
   authMethod: 'none',
   issueRefreshToken: true,
   redirectUris: '',
-  scopes: 'user.read',
+  scopes: ['user.read'],
   websiteOrigin: '',
   accessTokenTtl: '',
   refreshTokenTtl: '',
+  rotateRefreshToken: false,
 })
 
 const editForm = reactive<ClientFormFields>({
   clientName: '',
   redirectUris: '',
-  scopes: '',
+  scopes: [],
   websiteOrigin: '',
   accessTokenTtl: '',
   refreshTokenTtl: '',
+  rotateRefreshToken: false,
 })
 
 const createLoading = ref(false)
@@ -136,11 +145,20 @@ function validateRedirectUris(
 }
 
 function validateScopes(
-  text: string,
+  scopes: string[],
 ): { ok: true; list: string[] } | { ok: false; message: string } {
-  const list = sanitizeOAuthScopes([...new Set(text.split(/[\s,，]+/).filter(Boolean))])
+  if (scopesLoading.value || scopesError.value || !scopeOptions.value.length) {
+    return { ok: false, message: '请先成功加载平台支持的授权范围' }
+  }
+  const list = [...new Set(scopes)]
   if (list.length === 0) {
     return { ok: false, message: '授权范围不能为空' }
+  }
+  const unsupported = list.filter(
+    (code) => !scopeOptions.value.some((scope) => scope.code === code),
+  )
+  if (unsupported.length) {
+    return { ok: false, message: `包含不可自助配置的权限：${unsupported.join('、')}，请重新选择` }
   }
   return { ok: true, list }
 }
@@ -232,6 +250,7 @@ function parseCommonFields(form: ClientFormFields, supportsRefreshToken: boolean
       websiteOrigin: form.websiteOrigin || undefined,
       accessTokenTtl: accessTokenTtl.value,
       refreshTokenTtl: refreshTokenTtl.value,
+      rotateRefreshToken: supportsRefreshToken ? form.rotateRefreshToken : undefined,
     },
   }
 }
@@ -250,8 +269,25 @@ onMounted(async () => {
     await router.push({ name: 'LOGIN' })
     return
   }
-  await loadClients()
+  await Promise.allSettled([loadClients(), loadScopes()])
 })
+
+async function loadScopes(): Promise<void> {
+  scopesLoading.value = true
+  scopesError.value = false
+  try {
+    const response = await listOAuthClientScopes()
+    const options = (response.data || []).filter(
+      (scope) => scope.code !== 'all' && scope.code !== 'user.email',
+    )
+    if (!options.length) throw new Error('No configurable scopes')
+    scopeOptions.value = options
+  } catch {
+    scopesError.value = true
+  } finally {
+    scopesLoading.value = false
+  }
+}
 
 async function loadClients(): Promise<void> {
   pageLoading.value = true
@@ -274,10 +310,11 @@ function openCreateDialog(): void {
     authMethod: 'none',
     issueRefreshToken: true,
     redirectUris: '',
-    scopes: 'user.read',
+    scopes: ['user.read'],
     websiteOrigin: '',
     accessTokenTtl: '',
     refreshTokenTtl: '',
+    rotateRefreshToken: false,
   })
   createDialog.value = true
 }
@@ -325,10 +362,11 @@ function openEditDialog(client: OAuthClientVO): void {
   Object.assign(editForm, {
     clientName: client.clientName,
     redirectUris: client.redirectUris.join('\n'),
-    scopes: sanitizeOAuthScopes(client.scopes).join(', '),
+    scopes: [...client.scopes],
     websiteOrigin: client.websiteOrigin || '',
     accessTokenTtl: '',
     refreshTokenTtl: '',
+    rotateRefreshToken: client.rotateRefreshToken ?? false,
   })
   editDialog.value = true
 }
@@ -352,7 +390,9 @@ async function submitEdit(): Promise<void> {
     editDialog.value = false
     createMessage({
       text: originChanged
-        ? '客户端已更新；网站 Origin 已变化，请同步检查服务端 CORS 白名单'
+        ? parsed.payload.websiteOrigin
+          ? '客户端已更新；新的网站 Origin 需管理员重新审批后才可跨域访问'
+          : '客户端已更新；网站 Origin 已移除'
         : '客户端更新成功',
       type: originChanged ? 'warning' : 'success',
     })
@@ -459,6 +499,7 @@ function openIntegrationGuide(client: OAuthClientVO): void {
       clientName: client.clientName,
       redirectUri: client.redirectUris[0] || undefined,
       scopes: sanitizeOAuthScopes(client.scopes).join(','),
+      rotateRefreshToken: String(client.rotateRefreshToken ?? false),
     },
   })
 }
@@ -571,9 +612,18 @@ function openIntegrationGuide(client: OAuthClientVO): void {
                   :key="scope"
                   size="x-small"
                   variant="tonal"
-                  color="primary"
+                  :color="
+                    scopeOptions.find((item) => item.code === scope)?.sensitive || scope === 'all'
+                      ? 'warning'
+                      : 'primary'
+                  "
                 >
-                  {{ scope }}
+                  {{ scope
+                  }}{{
+                    scopeOptions.find((item) => item.code === scope)?.sensitive || scope === 'all'
+                      ? ' · 敏感'
+                      : ''
+                  }}
                 </v-chip>
               </span>
             </div>
@@ -587,7 +637,26 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             </div>
             <div class="detail-row detail-row-wide">
               <span class="detail-label">网站 Origin</span>
-              <span class="detail-value font-mono">{{ client.websiteOrigin || '未设置' }}</span>
+              <span class="detail-value chip-list">
+                <span class="font-mono">{{ client.websiteOrigin || '未设置' }}</span>
+                <v-chip
+                  v-if="client.websiteOrigin"
+                  :color="client.originApproved ? 'success' : 'warning'"
+                  size="x-small"
+                >
+                  {{ client.originApproved ? 'Origin 审批通过' : 'Origin 待审批' }}
+                </v-chip>
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">刷新策略</span>
+              <span class="detail-value">{{
+                !client.grantTypes.includes('refresh_token')
+                  ? '不签发 Refresh Token'
+                  : client.rotateRefreshToken
+                    ? '轮转凭证'
+                    : '固定凭证'
+              }}</span>
             </div>
             <div class="detail-row">
               <span class="detail-label">安全策略</span>
@@ -716,16 +785,13 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             density="compact"
             rows="3"
           ></v-textarea>
-          <v-textarea
+          <OAuthScopeSelector
             v-model="createForm.scopes"
-            label="授权范围"
-            placeholder="例如：user.read"
-            hint="使用逗号或空格分隔"
-            persistent-hint
-            variant="outlined"
-            density="compact"
-            rows="2"
-          ></v-textarea>
+            :options="scopeOptions"
+            :loading="scopesLoading"
+            :error="scopesError"
+            @retry="loadScopes"
+          />
 
           <div class="grant-settings">
             <div>
@@ -741,11 +807,20 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             ></v-checkbox>
           </div>
 
+          <v-switch
+            v-model="createForm.rotateRefreshToken"
+            label="开启 Refresh Token 轮转"
+            :disabled="!createForm.issueRefreshToken"
+            hint="默认固定凭证；开启后每次刷新都须保存响应中的新 refresh_token"
+            persistent-hint
+            color="primary"
+            density="compact"
+          ></v-switch>
           <v-text-field
             v-model="createForm.websiteOrigin"
             label="网站 Origin（可选）"
             placeholder="https://app.example.com"
-            hint="仅登记协议、主机和端口；服务端 CORS 白名单仍需单独配置"
+            hint="仅含协议、主机和端口；登记后需管理员审批，通过后进入 CORS 白名单"
             persistent-hint
             variant="outlined"
             density="compact"
@@ -789,6 +864,7 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             color="primary"
             prepend-icon="mdi-plus"
             :loading="createLoading"
+            :disabled="scopesLoading || scopesError || !scopeOptions.length"
             @click="submitCreate"
           >
             创建
@@ -841,19 +917,26 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             density="compact"
             rows="3"
           ></v-textarea>
-          <v-textarea
+          <OAuthScopeSelector
             v-model="editForm.scopes"
-            label="授权范围"
-            hint="使用逗号或空格分隔"
+            :options="scopeOptions"
+            :loading="scopesLoading"
+            :error="scopesError"
+            @retry="loadScopes"
+          />
+          <v-switch
+            v-model="editForm.rotateRefreshToken"
+            label="开启 Refresh Token 轮转"
+            :disabled="!editingClient?.grantTypes.includes('refresh_token')"
+            hint="开启后必须持久化替换新 refresh_token；关闭不改变已有轮转凭证的处理方式"
             persistent-hint
-            variant="outlined"
+            color="primary"
             density="compact"
-            rows="2"
-          ></v-textarea>
+          ></v-switch>
           <v-text-field
             v-model="editForm.websiteOrigin"
             label="网站 Origin（可选）"
-            hint="修改后请同步检查服务端 CORS 白名单"
+            hint="Origin 变化后需管理员重新审批；留空移除已登记的 Origin"
             persistent-hint
             variant="outlined"
             density="compact"
@@ -896,6 +979,7 @@ function openIntegrationGuide(client: OAuthClientVO): void {
             color="primary"
             prepend-icon="mdi-content-save-outline"
             :loading="editLoading"
+            :disabled="scopesLoading || scopesError || !scopeOptions.length"
             @click="submitEdit"
           >
             保存
