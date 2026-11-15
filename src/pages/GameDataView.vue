@@ -72,6 +72,9 @@ const sourceLoadError = ref(false)
 
 const keyword = ref('')
 const rarityFilter = ref<'all' | number>('all')
+const ownedFilter = ref<'all' | 0 | 1>('all')
+const professionFilter = ref('all')
+const yearFilter = ref<'all' | number>('all')
 const currentPage = ref(1)
 
 /** 干员静态表（名称 / 星级 / 职业），异步加载，缺失时按 charId 降级展示 */
@@ -133,6 +136,31 @@ const actionError = ref('')
 
 /** 可选星级筛选项 */
 const rarityOptions = [1, 2, 3, 4, 5, 6]
+const yearOptions = Array.from({ length: 8 }, (_, index) => 2019 + index)
+const professionOptions = computed(() => [
+  { title: '全部职业', value: 'all' },
+  ...Object.entries(operatorStatic.value.professionLabels).map(([value, title]) => ({
+    title,
+    value,
+  })),
+])
+const hasActiveFilters = computed(
+  () =>
+    Boolean(keyword.value.trim()) ||
+    rarityFilter.value !== 'all' ||
+    ownedFilter.value !== 'all' ||
+    professionFilter.value !== 'all' ||
+    yearFilter.value !== 'all',
+)
+
+function resetRosterFilters(): void {
+  keyword.value = ''
+  rarityFilter.value = 'all'
+  ownedFilter.value = 'all'
+  professionFilter.value = 'all'
+  yearFilter.value = 'all'
+}
+
 /** 补齐完整图鉴，并叠加当前来源的本地草稿；上传从此集合提取修改条目。 */
 const rosterRows = computed(() =>
   (!activeAkUid.value && !isManualEditing.value) || sourceLoadError.value
@@ -157,12 +185,17 @@ function operatorRarity(operator: AkOperatorVO): number {
   return getOperatorEntry(operatorStatic.value, operator.id)?.rarity || 0
 }
 
-/** 关键字与星级筛选，筛选范围包含完整图鉴。 */
+/** 关键字、星级、招募状态、职业和实装年份同时匹配，招募状态包含本地草稿的修改。 */
 const filteredOperators = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return rosterRows.value.filter((operator) => {
     if (rarityFilter.value !== 'all' && operatorRarity(operator) !== rarityFilter.value)
       return false
+    if (ownedFilter.value !== 'all' && operator.owned !== ownedFilter.value) return false
+    const entry = getOperatorEntry(operatorStatic.value, operator.id)
+    if (professionFilter.value !== 'all' && entry?.profession !== professionFilter.value)
+      return false
+    if (yearFilter.value !== 'all' && entry?.releaseYear !== yearFilter.value) return false
     if (!text) return true
     if (operator.id.toLowerCase().includes(text)) return true
     const name = getOperatorDisplayName(operatorStatic.value, operator.id)
@@ -185,7 +218,7 @@ const pageOperators = computed(() => {
 const credentialCardStatus = computed(() => (isFetchingBindings.value ? '处理中' : '可用'))
 
 // 筛选条件变化后回到第一页，同时避免停留在超出范围的页码
-watch([keyword, rarityFilter], () => {
+watch([keyword, rarityFilter, ownedFilter, professionFilter, yearFilter], () => {
   currentPage.value = 1
 })
 
@@ -314,8 +347,7 @@ async function viewAccount(akUid: string, source: 'skland' | 'manual' = 'skland'
   if (isSavingManual.value) return
   activeAkUid.value = akUid
   activeSource.value = source
-  keyword.value = ''
-  rarityFilter.value = 'all'
+  resetRosterFilters()
   currentPage.value = 1
   isLoadingOperators.value = true
   sourceLoadError.value = false
@@ -812,19 +844,6 @@ void loadOperatorStaticData().then((data) => {
               :disabled="!activeAkUid && !isManualEditing"
               hide-details
             ></v-text-field>
-            <v-select
-              v-model="rarityFilter"
-              class="operator-rarity-filter"
-              label="星级"
-              :items="[
-                { title: '全部星级', value: 'all' },
-                ...rarityOptions.map((value) => ({ title: `${value} 星`, value })),
-              ]"
-              variant="outlined"
-              density="compact"
-              :disabled="!activeAkUid && !isManualEditing"
-              hide-details
-            ></v-select>
             <div class="operator-editor-actions">
               <button
                 class="operator-editor-secondary"
@@ -837,6 +856,71 @@ void loadOperatorStaticData().then((data) => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="operator-roster-filters" role="group" aria-label="干员筛选">
+          <div class="operator-filter-heading">
+            <v-icon icon="mdi-filter-variant" size="18"></v-icon>
+            <span>筛选</span>
+          </div>
+          <v-select
+            v-model="rarityFilter"
+            class="operator-filter-field operator-rarity-filter"
+            label="星级"
+            :items="[
+              { title: '全部星级', value: 'all' },
+              ...rarityOptions.map((value) => ({ title: `${value} 星`, value })),
+            ]"
+            variant="outlined"
+            density="compact"
+            :disabled="!activeAkUid && !isManualEditing"
+            hide-details
+          ></v-select>
+          <v-select
+            v-model="ownedFilter"
+            class="operator-filter-field operator-owned-filter"
+            label="是否招募"
+            :items="[
+              { title: '全部状态', value: 'all' },
+              { title: '已招募', value: 1 },
+              { title: '未招募', value: 0 },
+            ]"
+            variant="outlined"
+            density="compact"
+            :disabled="!activeAkUid && !isManualEditing"
+            hide-details
+          ></v-select>
+          <v-select
+            v-model="professionFilter"
+            class="operator-filter-field operator-profession-filter"
+            label="职业"
+            :items="professionOptions"
+            variant="outlined"
+            density="compact"
+            :disabled="!activeAkUid && !isManualEditing"
+            hide-details
+          ></v-select>
+          <v-select
+            v-model="yearFilter"
+            class="operator-filter-field operator-year-filter"
+            label="实装年份"
+            :items="[
+              { title: '全部年份', value: 'all' },
+              ...yearOptions.map((value) => ({ title: `${value} 年`, value })),
+            ]"
+            variant="outlined"
+            density="compact"
+            :disabled="!activeAkUid && !isManualEditing"
+            hide-details
+          ></v-select>
+          <button
+            class="operator-editor-secondary operator-filter-reset"
+            type="button"
+            :disabled="!hasActiveFilters || (!activeAkUid && !isManualEditing)"
+            @click="resetRosterFilters"
+          >
+            重置筛选
+          </button>
         </div>
 
         <div class="operator-manual-toolbar">
@@ -2080,7 +2164,7 @@ void loadOperatorStaticData().then((data) => {
 
 .operator-editor-toolbar-controls {
   display: grid;
-  grid-template-columns: minmax(190px, 1.5fr) 126px auto;
+  grid-template-columns: minmax(190px, 1fr) auto;
   align-items: center;
   justify-content: end;
   gap: 10px;
@@ -2089,9 +2173,27 @@ void loadOperatorStaticData().then((data) => {
 }
 
 .operator-search-field,
-.operator-rarity-filter {
+.operator-filter-field {
   min-width: 0;
   margin: 0;
+}
+
+.operator-roster-filters {
+  display: grid;
+  grid-template-columns: auto repeat(4, minmax(100px, 1fr)) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--site-line);
+}
+
+.operator-filter-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* ---- 干员表格 ---- */
@@ -2496,6 +2598,20 @@ void loadOperatorStaticData().then((data) => {
     grid-column: 1 / -1;
   }
 
+  .operator-roster-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .operator-filter-heading {
+    grid-column: 1;
+  }
+
+  .operator-filter-reset {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
   .operator-editor-actions {
     justify-content: flex-start;
   }
@@ -2533,6 +2649,23 @@ void loadOperatorStaticData().then((data) => {
 
   .operator-search-field {
     grid-column: auto;
+  }
+
+  .operator-roster-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 14px 18px;
+  }
+
+  .operator-filter-heading {
+    grid-column: 1;
+  }
+
+  .operator-filter-reset {
+    grid-column: 2;
+  }
+
+  .operator-filter-field {
+    grid-column: 1 / -1;
   }
 
   .operator-editor-summary {

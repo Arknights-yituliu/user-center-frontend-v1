@@ -4,6 +4,7 @@
  * 数据来源 `public/data/operator/`（同步自 frontend-v2-plus 的 arknights 静态表）：
  * - `character_table_simple.v2.json`：charId → { name, rarity, profession, subProfessionId }
  * - `profession_dict.json`：职业 / 分支的英文标识与中文名
+ * - `operator_update_time.json`：干员实装时间
  *
  * 放在 public 下按需 fetch 而不打进 JS 包：整表约 670KB，只有游戏数据页需要，
  * 也避免大 JSON 参与 TS 类型推导。
@@ -45,6 +46,8 @@ export interface OperatorTableEntry {
   profession: string
   /** 分支标识，如 fastshot */
   subProfessionId: string
+  /** 实装年份，由 operator_update_time.json 补充 */
+  releaseYear?: number
   /** 技能列表（顺序与 skill1/2/3 对应） */
   skills?: OperatorSkillInfo[]
   /** 模组列表（按 typeName2 区分槽位） */
@@ -75,6 +78,10 @@ interface ProfessionDictItem {
   children?: Array<{ value: string; label: string }>
 }
 
+interface OperatorReleaseInfo {
+  updateTime?: string
+}
+
 const DATA_BASE = `${import.meta.env.BASE_URL}data/operator/`
 
 /**
@@ -94,7 +101,7 @@ async function fetchJson<T>(file: string): Promise<T | null> {
 let loadingPromise: Promise<OperatorStaticData> | null = null
 
 /**
- * 加载干员静态表与职业字典（进程内只请求一次）
+ * 加载干员静态表、实装时间与职业字典（进程内只请求一次）
  * 失败时返回空表，调用方按「没有名称」降级展示
  */
 export function loadOperatorStaticData(): Promise<OperatorStaticData> {
@@ -102,7 +109,12 @@ export function loadOperatorStaticData(): Promise<OperatorStaticData> {
   loadingPromise = Promise.all([
     fetchJson<OperatorTable>('character_table_simple.v2.json'),
     fetchJson<ProfessionDictItem[]>('profession_dict.json'),
-  ]).then(([operators, professions]) => {
+    fetchJson<Record<string, OperatorReleaseInfo>>('operator_update_time.json'),
+  ]).then(([operators, professions, releaseInfo]) => {
+    for (const [id, entry] of Object.entries(operators || {})) {
+      const year = Number(releaseInfo?.[id]?.updateTime?.match(/^(\d{4})\//)?.[1])
+      if (Number.isInteger(year)) entry.releaseYear = year
+    }
     const professionLabels: Record<string, string> = {}
     const subProfessionLabels: Record<string, string> = {}
     for (const item of professions || []) {
