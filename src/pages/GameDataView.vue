@@ -638,15 +638,15 @@ void loadAccounts()
                   <th scope="col">等级</th>
                   <th scope="col">精英</th>
                   <th scope="col">潜能</th>
-                  <th scope="col">通用</th>
-                  <th scope="col">技一</th>
-                  <th scope="col">技二</th>
-                  <th scope="col">技三</th>
-                  <th scope="col">X</th>
-                  <th scope="col">Y</th>
-                  <th scope="col">D</th>
-                  <th scope="col">A</th>
-                  <th scope="col">B</th>
+                  <th scope="col">通用技能</th>
+                  <th scope="col">一技能</th>
+                  <th scope="col">二技能</th>
+                  <th scope="col">三技能</th>
+                  <th scope="col">模组 X</th>
+                  <th scope="col">模组 Y</th>
+                  <th scope="col">模组 D</th>
+                  <th scope="col">模组 A</th>
+                  <th scope="col">模组 B</th>
                 </tr>
               </thead>
               <tbody>
