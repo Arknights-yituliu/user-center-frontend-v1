@@ -272,7 +272,7 @@ async function handleSubmitNickname(): Promise<void> {
 
       <section class="content-module test-content-module">
         <div class="module-intro">
-          <h2 class="module-title">通用数据更新与维护</h2>
+          <h2 class="module-title">游戏数据更新与维护</h2>
           <div class="module-info data-status-list">
             <p class="data-status" :class="`data-status-${operatorDataStatus.tone}`">
               干员数据：{{ operatorDataStatus.label }}
@@ -281,12 +281,12 @@ async function handleSubmitNickname(): Promise<void> {
         </div>
 
         <div class="module-operation common-data-content">
-          <RouterLink class="module-action-link" to="/common-data">
+          <RouterLink class="module-action-link" to="/arknights-game-data">
             <span class="module-action-icon">
-              <v-icon icon="mdi-database-cog-outline" size="22"></v-icon>
+              <v-icon icon="mdi-gamepad-variant-outline" size="22"></v-icon>
             </span>
             <span class="module-action-copy">
-              <strong class="module-action-title">进入通用数据维护面板</strong>
+              <strong class="module-action-title">进入游戏数据管理面板</strong>
               <small class="module-action-description"
                 >维护干员信息，以供不特定的第三方项目调用</small
               >

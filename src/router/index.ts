@@ -7,7 +7,6 @@ import ColorView from '../pages/ColorView.vue'
 import UIPreviewView from '../pages/UIPreviewView.vue'
 import UserGuideView from '../pages/UserGuideView.vue'
 import DeveloperView from '../pages/DeveloperView.vue'
-import CommonDataView from '../pages/CommonDataView.vue'
 import GameDataView from '../pages/GameDataView.vue'
 import AboutView from '../pages/AboutView.vue'
 import LoginView from '../pages/account/login.vue'
@@ -99,15 +98,11 @@ const router = createRouter({
     },
     { path: '/user/profile', redirect: { name: 'USER_PROFILE' } },
     {
-      // 通用数据维护：用户维护可被多个工具共同使用的个人数据
+      // 旧通用数据维护页面已下线，统一跳转到游戏数据管理页
       path: '/common-data',
-      name: 'COMMON_DATA',
-      component: CommonDataView,
-      meta: {
-        title: '通用数据维护',
-      },
+      redirect: { name: 'GAME_DATA' },
     },
-    { path: '/user/common-data', redirect: { name: 'COMMON_DATA' } },
+    { path: '/user/common-data', redirect: { name: 'GAME_DATA' } },
     {
       // 游戏数据管理：独立于通用数据维护的 UC 账号数据链路
       path: '/arknights-game-data',
