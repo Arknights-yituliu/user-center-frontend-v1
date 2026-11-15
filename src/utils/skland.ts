@@ -2,14 +2,14 @@ import axios from 'axios'
 import hmacSHA256 from 'crypto-js/hmac-sha256'
 import md5 from 'crypto-js/md5'
 import { createMessage } from './message'
+import { getOperatorEntry, loadOperatorStaticData, type OperatorStaticData } from './operator-table'
 
 /**
  * 森空岛（Skland）数据工具类
  *
  * 由 frontend-v2-plus 的 src/utils/survey/skland.js 移植而来，接口签名、请求与数据格式化逻辑保持一致；
  * 差异点见各函数注释：
- * 1. 参考实现依赖本地干员表 operatorTableV2 构建模组字典、校验星级，本项目没有该数据表，
- *    改为直接使用森空岛接口下发的 typeName2 与 rarity；
+ * 1. 模组分支与星级由 public/data/operator/ 下的干员静态表补全；
  * 2. 参考实现错误上报走 toolAPI.collectLog，本项目暂无对应接口，仅保留消息提示。
  */
 
@@ -299,13 +299,14 @@ export async function getPlayBindingV2(
 
 /**
  * 把森空岛培养接口返回的干员原始数据格式化成干员上传格式
- * 参考实现用本地干员表构建「模组 id → 分支名」字典并校验星级，本项目没有该数据表，
- * 改为直接使用接口下发的 equips[].typeName2 与 rarity
+ * 森空岛 equips 通常只有 id 和 level，需要查静态表将模组 id 映射到 X/Y/D/A/B。
  * @param characterList 森空岛培养接口的 characters 字段
+ * @param staticData 干员静态数据，提供模组分支与星级
  * @returns 可直接提交给干员上传接口的干员记录列表
  */
 export function formattingOperatorData(
   characterList: SklandCultivateCharacter[],
+  staticData: OperatorStaticData,
 ): SklandOperatorRecord[] {
   const operatorList: SklandOperatorRecord[] = []
 
@@ -321,11 +322,12 @@ export function formattingOperatorData(
     const { id, level, evolvePhase, mainSkillLevel, skills, equips, potentialRank, rarity } =
       character
     if (!id) continue
+    const entry = getOperatorEntry(staticData, id)
 
     // 字段名与取值均与干员上传接口对齐，潜能沿用森空岛原值（0 起算）
     const operator: SklandOperatorRecord = {
       id,
-      rarity: rarity ?? 1,
+      rarity: rarity ?? entry?.rarity ?? 1,
       level: level ?? 0,
       evolvePhase: evolvePhase ?? 0,
       mainSkillLevel: mainSkillLevel ?? 0,
@@ -355,8 +357,15 @@ export function formattingOperatorData(
     if (equips) {
       for (const equip of equips) {
         if (!equip || typeof equip.level !== 'number') continue
-        const field = equip.typeName2 ? moduleKeyMap[equip.typeName2.toUpperCase()] : undefined
-        if (field) operator[field] = equip.level
+        const branch =
+          entry?.equip?.find((item) => item.uniEquipId === equip.id)?.typeName2 ?? equip.typeName2
+        const field = branch ? moduleKeyMap[branch.toUpperCase()] : undefined
+        if (field) {
+          operator[field] = equip.level
+        } else if (equip.level > 0) {
+          // 无法映射已升级模组时中止导入，避免把已有模组等级静默覆盖成 0。
+          throw new Error('部分已升级模组无法匹配静态数据，请刷新页面后重试导入')
+        }
       }
     }
 
@@ -388,7 +397,10 @@ export async function getWarehouseInfo(
     itemList: [],
   }
 
-  const response = await axios.get(url, { headers })
+  const [response, staticData] = await Promise.all([
+    axios.get(url, { headers }),
+    loadOperatorStaticData(),
+  ])
   const payload = response.data as SklandApiResponse<SklandCultivatePayload>
 
   if (payload.code !== 0) {
@@ -398,7 +410,7 @@ export async function getWarehouseInfo(
   const items = payload.data?.items ?? []
   const characters = payload.data?.characters ?? []
 
-  data.operators = formattingOperatorData(characters)
+  data.operators = formattingOperatorData(characters, staticData)
   data.itemList = items.map((item) => ({ itemId: item.id, quantity: item.count }))
 
   return data
