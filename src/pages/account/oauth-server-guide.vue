@@ -58,7 +58,7 @@ const checklist = reactive([
   { text: '使用 client_secret_post，不使用 HTTP Basic Authentication', done: false },
   { text: '浏览器只持有业务系统自己的安全会话', done: false },
   { text: '业务成功与否按响应体 code 判断', done: false },
-  { text: '刷新成功后更新本地 access token；refresh token 固定复用，无需替换', done: false },
+  { text: '刷新成功后更新 access token；响应含 refresh_token 时必须持久化替换旧值', done: false },
   { text: '密钥轮换后所有后端实例同步切换到新密钥', done: false },
 ])
 
@@ -79,6 +79,7 @@ const integration = reactive({
   clientId: queryText('clientId'),
   redirectUri: queryText('redirectUri'),
   scopes: sanitizeScopes(queryText('scopes')) || 'user.read',
+  rotateRefreshToken: queryText('rotateRefreshToken') === 'true',
 })
 const sourceClientName = queryText('clientName')
 const activeSection = ref('prepare')
@@ -180,16 +181,23 @@ const tokenResponse = `{
   }
 }`
 
-// 刷新令牌成功响应：仅返回新的 access token，refresh_token 与 scope 未变均不返回
-const refreshResponse = `{
-  "code": 200,
-  "msg": "操作成功",
-  "data": {
-    "access_token": "access_token_value_2",
-    "token_type": "Bearer",
-    "expires_in": 7200
-  }
-}`
+// 未轮转时保留原 refresh token；轮转响应必须包含新的 refresh_token。
+const refreshResponse = computed(() =>
+  JSON.stringify(
+    {
+      code: 200,
+      msg: '操作成功',
+      data: {
+        access_token: 'access_token_value_2',
+        token_type: 'Bearer',
+        expires_in: 7200,
+        ...(integration.rotateRefreshToken ? { refresh_token: 'refresh_token_value_2' } : {}),
+      },
+    },
+    null,
+    2,
+  ),
+)
 
 const userinfoResponse = `{
   "code": 200,
@@ -222,6 +230,7 @@ function resetParameters(): void {
   integration.clientId = ''
   integration.redirectUri = ''
   integration.scopes = 'user.read'
+  integration.rotateRefreshToken = false
 }
 
 function markAllChecks(): void {
@@ -341,6 +350,13 @@ onBeforeUnmount(() => observer?.disconnect())
           hide-details
           @blur="integration.scopes = sanitizeScopes(integration.scopes) || 'user.read'"
         ></v-text-field>
+        <v-switch
+          v-model="integration.rotateRefreshToken"
+          label="展示轮转模式的刷新响应"
+          color="primary"
+          density="compact"
+          hide-details
+        ></v-switch>
       </div>
     </section>
 
@@ -427,6 +443,22 @@ onBeforeUnmount(() => observer?.disconnect())
             <div>
               <strong>回调地址必须精确匹配</strong>
               <p>协议、域名、端口、路径和查询参数均须与登记值完全一致。</p>
+            </div>
+          </div>
+          <div class="callout info">
+            <v-icon icon="mdi-shield-account-outline"></v-icon>
+            <div>
+              <strong>按业务选择授权范围</strong>
+              <p>
+                多个 scope 使用英文逗号分隔；user.read 用于读取资料，user.profile
+                用于修改昵称和头像，config.read / config.write 用于应用配置。
+              </p>
+              <p>
+                明日方舟使用 ak-data.read / ak-data.write，终末地使用 ef-data.read /
+                ef-data.write；gama-data.read / gama-data.write
+                覆盖两个游戏的对应操作。读取与写入权限相互独立，all 不可自助配置，OAuth
+                不提供邮箱权限。
+              </p>
             </div>
           </div>
         </section>
@@ -690,7 +722,8 @@ onBeforeUnmount(() => observer?.disconnect())
           <p>
             只有登记了 <code>refresh_token</code> grant 才会签发 refresh token；否则响应体不包含
             <code>refresh_token</code> 字段（<code>access_token</code>、<code>token_type</code>、
-            <code>expires_in</code> 照常返回）。授权码只能成功兑换一次；随后立即删除本次 state 和 code_verifier。
+            <code>expires_in</code> 照常返回）。授权码只能成功兑换一次；随后立即删除本次 state 和
+            code_verifier。
           </p>
         </section>
 
@@ -755,6 +788,49 @@ onBeforeUnmount(() => observer?.disconnect())
               <p>除非业务协议明确需要，access token 与 refresh token 都应保存在业务后端。</p>
             </div>
           </div>
+          <div class="callout warning">
+            <v-icon icon="mdi-identifier"></v-icon>
+            <div>
+              <strong>保留用户 ID 的完整精度</strong>
+              <p>
+                uid 是 int64，可能超出 JavaScript 安全整数范围；应在 JSON 解析阶段无损保留为字符串或
+                BigInt，先解析为 Number 再转字符串无法恢复精度。UserInfo
+                不返回邮箱、账号状态或登录时间。
+              </p>
+            </div>
+          </div>
+          <h3>修改昵称与头像</h3>
+          <p>
+            以下接口均使用 OAuth access token，并要求
+            user.profile；昵称和头像分别提交，修改后立即生效。
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>接口</th>
+                  <th>JSON 请求体</th>
+                  <th>约束</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>POST /oauth2/profile/nickname</code></td>
+                  <td><code>{ "nickname": "新昵称" }</code></td>
+                  <td>非空，最长 64 字符，支持中文</td>
+                </tr>
+                <tr>
+                  <td><code>POST /oauth2/profile/avatar</code></td>
+                  <td><code>{ "avatar": "https://example.com/avatar.png" }</code></td>
+                  <td>非 null，最长 512 字符；空字符串清除头像</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            请求使用 application/json。成功返回 code=200、data=null；字段校验失败返回 HTTP 400 /
+            code=10002，缺少权限返回 code=80008。用户名与邮箱修改接口尚未提供。
+          </p>
         </section>
 
         <section id="refresh" class="doc-section">
@@ -770,7 +846,7 @@ onBeforeUnmount(() => observer?.disconnect())
               <h3>刷新令牌</h3>
               <div class="code-example">
                 <div class="code-toolbar">
-                  <span>HTTP · 固定凭证刷新</span
+                  <span>HTTP · 刷新请求</span
                   ><v-btn
                     icon="mdi-content-copy"
                     variant="text"
@@ -803,7 +879,8 @@ onBeforeUnmount(() => observer?.disconnect())
           </div>
           <div class="code-example">
             <div class="code-toolbar">
-              <span>JSON · 刷新响应</span
+              <span
+                >JSON · {{ integration.rotateRefreshToken ? '轮转凭证' : '固定凭证' }}刷新响应</span
               ><v-btn
                 icon="mdi-content-copy"
                 variant="text"
@@ -816,14 +893,33 @@ onBeforeUnmount(() => observer?.disconnect())
             <pre><code>{{ refreshResponse }}</code></pre>
           </div>
           <p>
-            刷新成功仅返回新的 access token；<code>refresh_token</code> 未变、<code>scope</code> 未变，均不返回。
+            刷新策略由客户端的 <code>rotateRefreshToken</code> 配置决定，默认关闭。
+            固定凭证模式仅返回新的 access token；开启轮转后响应额外包含新的
+            <code>refresh_token</code>，必须持久化替换旧值。未返回的 <code>scope</code> 沿用原值。
           </p>
           <ul class="plain-list">
-            <li>刷新成功后更新本地 access token；refresh token 为固定凭证，原值复用无需替换。</li>
-            <li>默认 90 天有效，有效期内可反复刷新，服务端不删除、不换发。</li>
+            <li>
+              固定凭证模式复用原 refresh token；轮转模式必须先持久化响应中的新
+              refresh_token，再响应业务请求。
+            </li>
+            <li>
+              Refresh Token 默认有效期为签发起 90
+              天，以客户端配置为准；轮转后的新凭证继承剩余有效期，不延长授权总时长。
+            </li>
             <li>刷新返回 90009 表示 refresh token 已过期或被吊销，清除令牌并让用户重新授权。</li>
+            <li>
+              轮转模式有 60
+              秒宽限期：丢包重试或并发请求会拿到同一份新凭证；应串行刷新，避免旧响应覆盖新凭证。
+            </li>
+            <li>
+              宽限期外重用旧 refresh_token 会被判定为泄露，该次授权派生的全部令牌失效，收到 90009
+              后须重新授权。
+            </li>
             <li>密钥轮换后，所有后端实例必须立即使用新密钥。</li>
-            <li>吊销 refresh token 时，它派生的 access token（同一客户端名下）会被级联吊销；吊销接口幂等。</li>
+            <li>
+              吊销 refresh token 只使该凭证失效，已派生的 access token
+              按各自有效期过期；如需立即终止全部访问，请在用户中心撤回该应用授权。吊销接口幂等。
+            </li>
           </ul>
         </section>
 
