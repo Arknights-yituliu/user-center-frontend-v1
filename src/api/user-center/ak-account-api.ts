@@ -12,6 +12,8 @@ import { ucRequest, type UcResponse } from './request'
 export interface AkAccountVO {
   /** 游戏账号 UID */
   akUid: string
+  /** 数据来源；旧接口未提供时视为森空岛自动导入 */
+  source?: 'skland' | 'manual'
   /** 绑定关系创建时间（首次导入该账号数据时） */
   createTime: string
   /** 该账号干员数据最近一次导入时间 */
@@ -24,6 +26,8 @@ export interface AkOperatorVO {
   id: string
   /** 数据库自增行 ID，仅供排查 */
   recordId: number
+  /** 是否招募：0 否，1 是；兼容旧接口未提供时按已招募处理 */
+  owned?: number
   /** 干员星级，0 表示未提供 */
   rarity: number
   /** 干员等级 */
@@ -141,7 +145,7 @@ export function listAkAccounts(): Promise<UcResponse<AkAccountVO[]>> {
 export function getAkOperators(akUid: string): Promise<UcResponse<AkOperatorListVO>> {
   return ucRequest<AkOperatorListVO>({
     method: 'GET',
-    url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(akUid)}`,
+    url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(akUid)}&source=skland`,
   })
 }
 

@@ -25,11 +25,11 @@ import {
   saveAkOperators,
   saveManualOperators,
   type AkAccountVO,
-  type AkOperatorSaveItem,
   type AkOperatorVO,
 } from '../api/user-center/ak-account-api'
 import { getUcUid } from '../api/user-center/request'
 import OperatorCellEditor from '../components/OperatorCellEditor.vue'
+import { buildManualUploadPayload, buildRosterRows, type RosterRow } from '../utils/operator-roster'
 import {
   getEquipIconUrl,
   getOperatorAvatarUrl,
@@ -54,10 +54,10 @@ import {
  *
  * 独立于「通用数据维护」页的酸橙云链路：只面对 UC 的 /user/ak-accounts 接口，
  * 用森空岛的三种凭证来源拉取账号数据，选定账号后上传到当前登录用户。
- * 干员数据以只读表格分页展示，避免一次性渲染大量表单控件导致页面卡死。
+ * 干员数据分页展示，手动修改先保留为本地草稿，点击上传后批量保存修改过的条目到个人手动版。
  */
 
-/** 每页展示的干员行数（只读表格，保持单页渲染量可控） */
+/** 每页展示的干员行数，保持单页渲染量可控。 */
 const PAGE_SIZE = 50
 
 const accounts = ref<AkAccountVO[]>([])
@@ -65,8 +65,10 @@ const isLoadingAccounts = ref(false)
 
 /** 当前查看干员数据的账号 uid，空串表示未选择 */
 const activeAkUid = ref('')
+const activeSource = ref<'skland' | 'manual'>('skland')
 const operators = ref<AkOperatorVO[]>([])
 const isLoadingOperators = ref(false)
+const sourceLoadError = ref(false)
 
 const keyword = ref('')
 const rarityFilter = ref<'all' | number>('all')
@@ -75,13 +77,27 @@ const currentPage = ref(1)
 /** 干员静态表（名称 / 星级 / 职业），异步加载，缺失时按 charId 降级展示 */
 const operatorStatic = ref<OperatorStaticData>(EMPTY_OPERATOR_STATIC_DATA)
 
-/** 手动修改版干员（charId → 记录）：作为自动导入数据的覆盖层，按用户归属 */
-const manualOperators = ref<Record<string, AkOperatorVO>>({})
-/** 手动保存进行中（同一时间只允许一次，避免并发覆盖） */
+/** 手动修改默认关闭；各数据来源分别保留未上传的草稿。 */
+const isManualEditing = ref(false)
+const manualDrafts = ref<Record<string, Record<string, RosterRow>>>({})
+const sourceKey = computed(() => `${activeSource.value}:${activeAkUid.value || 'new'}`)
+const currentDrafts = computed(() => manualDrafts.value[sourceKey.value] || {})
+const dirtyCount = computed(() => Object.keys(currentDrafts.value).length)
 const isSavingManual = ref(false)
+const canStartManualEditing = computed(
+  () =>
+    Boolean(getUcUid()) &&
+    Object.keys(operatorStatic.value.operators).length > 0 &&
+    !isLoadingAccounts.value &&
+    !isLoadingOperators.value &&
+    !sourceLoadError.value &&
+    !isSavingManual.value,
+)
+const canEditOperators = computed(() => isManualEditing.value && canStartManualEditing.value)
 
 /** 可编辑的练度字段 */
 type EditableField =
+  | 'owned'
   | 'level'
   | 'evolvePhase'
   | 'mainSkillLevel'
@@ -93,9 +109,6 @@ type EditableField =
   | 'equipD'
   | 'equipA'
   | 'equipB'
-
-/** 表格行：自动导入数据 + 手动修改版覆盖，manual 表示该行有手动值 */
-type RosterRow = AkOperatorVO & { manual: boolean }
 
 /** 数据来源对话框开关 */
 const credentialDialog = ref(false)
@@ -120,32 +133,19 @@ const actionError = ref('')
 
 /** 可选星级筛选项 */
 const rarityOptions = [1, 2, 3, 4, 5, 6]
-
-/** 干员总数（当前账号） */
-const operatorTotal = computed(() => operators.value.length)
-
-/** 表格数据：自动导入的干员 + 手动修改版覆盖（手动值优先） */
-const rosterRows = computed<RosterRow[]>(() =>
-  operators.value.map((operator) => {
-    const manual = manualOperators.value[operator.id]
-    if (!manual) return { ...operator, manual: false }
-    return {
-      ...operator,
-      level: manual.level,
-      evolvePhase: manual.evolvePhase,
-      mainSkillLevel: manual.mainSkillLevel,
-      skill1: manual.skill1,
-      skill2: manual.skill2,
-      skill3: manual.skill3,
-      equipX: manual.equipX,
-      equipY: manual.equipY,
-      equipD: manual.equipD,
-      equipA: manual.equipA,
-      equipB: manual.equipB,
-      manual: true,
-    }
-  }),
+/** 补齐完整图鉴，并叠加当前来源的本地草稿；上传从此集合提取修改条目。 */
+const rosterRows = computed(() =>
+  (!activeAkUid.value && !isManualEditing.value) || sourceLoadError.value
+    ? []
+    : buildRosterRows(
+        operators.value,
+        operatorStatic.value,
+        currentDrafts.value,
+        activeSource.value === 'manual',
+      ),
 )
+const operatorTotal = computed(() => rosterRows.value.length)
+const recruitedCount = computed(() => rosterRows.value.filter((row) => row.owned === 1).length)
 
 /**
  * 干员星级：优先用后端记录，缺失（0）时回退到静态表
@@ -157,11 +157,12 @@ function operatorRarity(operator: AkOperatorVO): number {
   return getOperatorEntry(operatorStatic.value, operator.id)?.rarity || 0
 }
 
-/** 按关键字（干员名称或编码）与星级过滤后的干员列表 */
+/** 关键字与星级筛选，筛选范围包含完整图鉴。 */
 const filteredOperators = computed(() => {
   const text = keyword.value.trim().toLowerCase()
   return rosterRows.value.filter((operator) => {
-    if (rarityFilter.value !== 'all' && operatorRarity(operator) !== rarityFilter.value) return false
+    if (rarityFilter.value !== 'all' && operatorRarity(operator) !== rarityFilter.value)
+      return false
     if (!text) return true
     if (operator.id.toLowerCase().includes(text)) return true
     const name = getOperatorDisplayName(operatorStatic.value, operator.id)
@@ -170,7 +171,9 @@ const filteredOperators = computed(() => {
 })
 
 /** 总页数（至少一页） */
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredOperators.value.length / PAGE_SIZE)))
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredOperators.value.length / PAGE_SIZE)),
+)
 
 /** 当前页要渲染的干员行 */
 const pageOperators = computed(() => {
@@ -286,8 +289,15 @@ async function loadAccounts(): Promise<void> {
     const response = await listAkAccounts()
     accounts.value = response.data || []
     const first = accounts.value[0]
-    if (first && !accounts.value.some((account) => account.akUid === activeAkUid.value)) {
-      await viewAccount(first.akUid)
+    if (
+      first &&
+      !accounts.value.some(
+        (account) =>
+          account.akUid === activeAkUid.value &&
+          (account.source || 'skland') === activeSource.value,
+      )
+    ) {
+      await viewAccount(first.akUid, first.source || 'skland')
     }
   } catch {
     // 业务错误已由 ucRequest 统一提示
@@ -300,99 +310,74 @@ async function loadAccounts(): Promise<void> {
  * 读取指定账号的干员数据并切换到该账号视图
  * @param akUid 游戏账号 uid
  */
-async function viewAccount(akUid: string): Promise<void> {
+async function viewAccount(akUid: string, source: 'skland' | 'manual' = 'skland'): Promise<void> {
+  if (isSavingManual.value) return
   activeAkUid.value = akUid
+  activeSource.value = source
   keyword.value = ''
   rarityFilter.value = 'all'
   currentPage.value = 1
   isLoadingOperators.value = true
+  sourceLoadError.value = false
   try {
-    const response = await getAkOperators(akUid)
+    const response = await (source === 'manual' ? getManualOperators(akUid) : getAkOperators(akUid))
     operators.value = response.data?.items || []
   } catch {
     operators.value = []
+    sourceLoadError.value = true
   } finally {
     isLoadingOperators.value = false
   }
 }
 
-/**
- * 读取当前用户的手动修改版干员数据
- *
- * 手动版按用户归属，`source=manual` 时 akUid 必须是用户中心 UID（后端强校验）；
- * 没有手动数据时返回空列表，读取失败按「无手动数据」处理，不影响自动导入数据展示。
- */
-async function loadManualOperators(): Promise<void> {
-  const ucUid = getUcUid()
-  if (!ucUid) return
-  try {
-    const response = await getManualOperators(ucUid)
-    const map: Record<string, AkOperatorVO> = {}
-    for (const item of response.data?.items || []) map[item.id] = item
-    manualOperators.value = map
-  } catch {
-    // 业务错误已由 ucRequest 统一提示
+/** 修改只写本地草稿，包含 owned=0 的未招募条目，不触发网络请求。 */
+function updateOperatorField(row: RosterRow, field: EditableField, value: number): void {
+  if (!canEditOperators.value) return
+  if (field === 'owned' && value !== 0 && value !== 1) return
+  const next: RosterRow = { ...row, [field]: value, dirty: true }
+  manualDrafts.value = {
+    ...manualDrafts.value,
+    [sourceKey.value]: { ...currentDrafts.value, [row.id]: next },
   }
 }
 
-/**
- * 把一行干员转成手动保存接口的请求项
- * 接口对省略 / null 的数值按 0 落库，所以这里必须把整行数值一起带上
- * @param operator 干员记录
- */
-function toManualSaveItem(operator: AkOperatorVO): AkOperatorSaveItem {
-  return {
-    id: operator.id,
-    owned: 1,
-    rarity: operator.rarity,
-    level: operator.level,
-    evolvePhase: operator.evolvePhase,
-    mainSkillLevel: operator.mainSkillLevel,
-    skill1: operator.skill1,
-    skill2: operator.skill2,
-    skill3: operator.skill3,
-    equipX: operator.equipX,
-    equipY: operator.equipY,
-    equipD: operator.equipD,
-    equipA: operator.equipA,
-    equipB: operator.equipB,
-    potentialRank: operator.potentialRank,
-  }
-}
-
-/**
- * 修改某一行的一项练度：先本地生效再保存到手动修改版，失败回滚
- * @param row 表格行（已合并手动值）
- * @param field 要修改的字段
- * @param value 新值
- */
-async function saveOperatorField(
-  row: RosterRow,
-  field: EditableField,
-  value: number,
-): Promise<void> {
-  if (isSavingManual.value) return
-  if (!getUcUid()) {
-    createMessage({ text: '请先登录后再修改练度', type: 'warning' })
+/** 明确点击按钮后，将全部分页中修改过的干员一次性上传到用户的手动版。 */
+async function uploadManualOperators(): Promise<void> {
+  if (!canEditOperators.value || !dirtyCount.value) return
+  const rows = rosterRows.value.map((row) => ({
+    ...row,
+    rarity: operatorRarity(row),
+  }))
+  const payload = buildManualUploadPayload(rows)
+  if (!payload.length) {
     return
   }
-  const next: RosterRow = { ...row, [field]: value }
-  const previous = manualOperators.value[row.id]
+  const key = sourceKey.value
   isSavingManual.value = true
-  manualOperators.value = { ...manualOperators.value, [row.id]: { ...next } }
   try {
-    // 星级用解析后的值（后端记录缺失时回退静态表），避免把手动记录写成 0 星
-    await saveManualOperators([{ ...toManualSaveItem(next), rarity: operatorRarity(next) }])
-    createMessage({
-      text: `${getOperatorDisplayName(operatorStatic.value, row.id)} 练度已保存`,
-      type: 'success',
-    })
+    await saveManualOperators(payload)
+    const drafts = { ...manualDrafts.value }
+    delete drafts[key]
+    manualDrafts.value = drafts
+    activeSource.value = 'manual'
+    activeAkUid.value = getUcUid()
+    // 增量保存后读取真正的手动数据，避免把未上传的森空岛条目误当作已保存的手动记录。
+    operators.value = []
+    isManualEditing.value = false
+    createMessage({ text: `已上传 ${payload.length} 名干员的修改`, type: 'success' })
+    isLoadingOperators.value = true
+    try {
+      const response = await getManualOperators(getUcUid())
+      operators.value = response.data?.items || []
+      sourceLoadError.value = false
+    } catch {
+      sourceLoadError.value = true
+    } finally {
+      isLoadingOperators.value = false
+    }
+    await loadAccounts()
   } catch {
-    // 保存失败：回滚到修改前的覆盖值（原本没有手动数据则直接移除）
-    const map = { ...manualOperators.value }
-    if (previous) map[row.id] = previous
-    else delete map[row.id]
-    manualOperators.value = map
+    // 上传失败保留草稿，用户可直接重试。
   } finally {
     isSavingManual.value = false
   }
@@ -591,7 +576,7 @@ async function uploadBinding(binding: SklandBinding): Promise<void> {
 /** 手动重新拉取当前账号的干员数据 */
 async function refreshOperators(): Promise<void> {
   if (!activeAkUid.value) return
-  await viewAccount(activeAkUid.value)
+  await viewAccount(activeAkUid.value, activeSource.value)
 }
 
 /** 切换到上一页 */
@@ -609,9 +594,6 @@ onBeforeUnmount(() => {
 })
 
 void loadAccounts()
-
-// 手动修改版干员（个人副本）覆盖层，与自动导入数据合并展示
-void loadManualOperators()
 
 // 干员静态表（名称 / 星级 / 职业）异步补全，失败时不影响表格本身的展示
 void loadOperatorStaticData().then((data) => {
@@ -659,9 +641,7 @@ void loadOperatorStaticData().then((data) => {
             <span
               :class="[
                 'operator-card-status',
-                isFetchingBindings
-                  ? 'operator-card-status-loading'
-                  : 'operator-card-status-ready',
+                isFetchingBindings ? 'operator-card-status-loading' : 'operator-card-status-ready',
               ]"
             >
               {{ credentialCardStatus }}
@@ -756,13 +736,19 @@ void loadOperatorStaticData().then((data) => {
       <div v-else class="operator-account-grid">
         <button
           v-for="account in accounts"
-          :key="account.akUid"
+          :key="`${account.source || 'skland'}:${account.akUid}`"
           class="operator-account-card"
-          :class="{ 'operator-account-card-active': account.akUid === activeAkUid }"
+          :class="{
+            'operator-account-card-active':
+              account.akUid === activeAkUid && (account.source || 'skland') === activeSource,
+          }"
           type="button"
-          @click="viewAccount(account.akUid)"
+          :disabled="isSavingManual || isLoadingOperators"
+          @click="viewAccount(account.akUid, account.source || 'skland')"
         >
-          <span class="operator-account-card-uid">{{ account.akUid }}</span>
+          <span class="operator-account-card-uid">{{
+            account.source === 'manual' ? '手动上传' : account.akUid
+          }}</span>
           <span class="operator-account-card-meta">
             <small>最近导入</small>
             <strong>{{ formatDateTime(account.updateTime) }}</strong>
@@ -781,14 +767,16 @@ void loadOperatorStaticData().then((data) => {
           <p class="operator-section-label">03 / ROSTER</p>
           <h2 id="game-data-roster-title">干员数据。</h2>
           <p v-if="activeAkUid">
-            当前账号 {{ activeAkUid }}，下方为该账号已导入的全部干员记录。
+            当前来源：{{
+              activeSource === 'manual' ? '手动上传' : `森空岛 · ${activeAkUid}`
+            }}，列表包含完整图鉴与招募状态。
           </p>
           <p v-else>选择一个已绑定的账号即可查看其干员数据。</p>
         </div>
         <div class="operator-editor-summary">
           <span>共</span>
           <strong>{{ operatorTotal }}</strong>
-          <small>名干员</small>
+          <small>名干员 · 已招募 {{ recruitedCount }}</small>
         </div>
       </div>
 
@@ -796,8 +784,21 @@ void loadOperatorStaticData().then((data) => {
         <div class="operator-editor-toolbar">
           <div class="operator-editor-toolbar-copy">
             <span class="operator-editor-label">当前账号</span>
-            <strong>{{ activeAkUid || '未选择账号' }}</strong>
-            <small>筛选出 {{ filteredOperators.length }} 条记录 · 点击数值可修改练度</small>
+            <strong>{{
+              activeSource === 'manual' && activeAkUid
+                ? '手动上传'
+                : activeAkUid || (isManualEditing ? '手动录入' : '未选择账号')
+            }}</strong>
+            <small
+              >筛选出 {{ filteredOperators.length }} 条记录 ·
+              {{
+                dirtyCount
+                  ? `${dirtyCount} 名干员待上传`
+                  : isManualEditing
+                    ? '修改后请点击手动上传'
+                    : '开启手动修改后可编辑'
+              }}</small
+            >
           </div>
           <div class="operator-editor-toolbar-controls">
             <v-text-field
@@ -808,7 +809,7 @@ void loadOperatorStaticData().then((data) => {
               variant="outlined"
               density="compact"
               clearable
-              :disabled="!activeAkUid"
+              :disabled="!activeAkUid && !isManualEditing"
               hide-details
             ></v-text-field>
             <v-select
@@ -821,14 +822,14 @@ void loadOperatorStaticData().then((data) => {
               ]"
               variant="outlined"
               density="compact"
-              :disabled="!activeAkUid"
+              :disabled="!activeAkUid && !isManualEditing"
               hide-details
             ></v-select>
             <div class="operator-editor-actions">
               <button
                 class="operator-editor-secondary"
                 type="button"
-                :disabled="!activeAkUid || isLoadingOperators"
+                :disabled="!activeAkUid || isLoadingOperators || isSavingManual"
                 @click="refreshOperators"
               >
                 <v-icon icon="mdi-refresh" size="16"></v-icon>
@@ -838,13 +839,46 @@ void loadOperatorStaticData().then((data) => {
           </div>
         </div>
 
+        <div class="operator-manual-toolbar">
+          <v-switch
+            v-model="isManualEditing"
+            class="operator-manual-switch"
+            label="手动修改"
+            color="primary"
+            density="compact"
+            :disabled="!canStartManualEditing"
+            hide-details
+            inset
+          ></v-switch>
+          <span class="operator-manual-status" aria-live="polite">
+            {{ dirtyCount ? `${dirtyCount} 名干员的修改尚未上传` : '开启后可修改练度和招募状态' }}
+          </span>
+          <button
+            class="operator-editor-primary"
+            type="button"
+            :disabled="!canEditOperators || !dirtyCount"
+            @click="uploadManualOperators"
+          >
+            <v-icon
+              :icon="isSavingManual ? 'mdi-loading' : 'mdi-cloud-upload-outline'"
+              size="16"
+            ></v-icon>
+            {{ isSavingManual ? '上传中…' : '手动上传' }}
+          </button>
+        </div>
+
         <div v-if="isLoadingOperators" class="operator-editor-empty">
           <v-progress-circular indeterminate color="primary" size="30"></v-progress-circular>
           <h3>正在读取干员数据。</h3>
           <p>正在向酸橙云查询该账号下的干员记录。</p>
         </div>
 
-        <div v-else-if="!activeAkUid" class="operator-editor-empty">
+        <div v-else-if="sourceLoadError" class="operator-editor-empty">
+          <h3>干员数据读取失败。</h3>
+          <p>请点击重新读取，成功后即可开启手动修改。</p>
+        </div>
+
+        <div v-else-if="!activeAkUid && !isManualEditing" class="operator-editor-empty">
           <v-icon icon="mdi-account-arrow-right-outline" size="30"></v-icon>
           <h3>尚未选择账号。</h3>
           <p>在上方「已绑定的游戏账号」中点击一张卡片即可查看干员数据。</p>
@@ -868,6 +902,7 @@ void loadOperatorStaticData().then((data) => {
               <thead>
                 <tr>
                   <th scope="col">干员</th>
+                  <th scope="col">是否招募</th>
                   <th scope="col">星级</th>
                   <th scope="col">等级</th>
                   <th scope="col">精英</th>
@@ -884,7 +919,7 @@ void loadOperatorStaticData().then((data) => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="operator in pageOperators" :key="operator.recordId">
+                <tr v-for="operator in pageOperators" :key="operator.id">
                   <td class="operator-roster-operator">
                     <div class="operator-roster-operator-inner">
                       <img
@@ -906,7 +941,11 @@ void loadOperatorStaticData().then((data) => {
                       <div class="operator-roster-operator-copy">
                         <span class="operator-roster-name" :title="operator.id">
                           {{ getOperatorDisplayName(operatorStatic, operator.id) }}
-                          <em v-if="operator.manual" class="operator-roster-manual-tag">手动</em>
+                          <em
+                            v-if="operator.dirty || operator.manual"
+                            class="operator-roster-manual-tag"
+                            >{{ operator.dirty ? '待上传' : '手动' }}</em
+                          >
                         </span>
                         <span class="operator-roster-meta">
                           {{ getOperatorProfessionText(operatorStatic, operator.id) || '未知职业' }}
@@ -914,33 +953,54 @@ void loadOperatorStaticData().then((data) => {
                       </div>
                     </div>
                   </td>
+                  <td>
+                    <button
+                      type="button"
+                      :class="[
+                        'operator-roster-owned',
+                        operator.owned ? 'operator-roster-owned--yes' : 'operator-roster-owned--no',
+                      ]"
+                      :disabled="!canEditOperators"
+                      :aria-label="`${getOperatorDisplayName(operatorStatic, operator.id)}：${operator.owned ? '已招募' : '未招募'}`"
+                      :aria-pressed="operator.owned === 1"
+                      @click="updateOperatorField(operator, 'owned', operator.owned ? 0 : 1)"
+                    >
+                      {{ operator.owned ? '已招募' : '未招募' }}
+                    </button>
+                  </td>
                   <td>{{ operatorRarity(operator) }}</td>
                   <td>
                     <OperatorCellEditor
+                      kind="level"
+                      label="修改等级"
                       :value="operator.level"
                       :min="0"
                       :max="90"
-                      :disabled="isSavingManual"
-                      @commit="saveOperatorField(operator, 'level', $event)"
+                      :disabled="!canEditOperators"
+                      @commit="updateOperatorField(operator, 'level', $event)"
                     />
                   </td>
                   <td>
                     <OperatorCellEditor
+                      kind="elite"
+                      label="修改精英化"
                       :value="operator.evolvePhase"
                       :min="0"
                       :max="2"
-                      :disabled="isSavingManual"
-                      @commit="saveOperatorField(operator, 'evolvePhase', $event)"
+                      :disabled="!canEditOperators"
+                      @commit="updateOperatorField(operator, 'evolvePhase', $event)"
                     />
                   </td>
                   <td>{{ operator.potentialRank }}</td>
                   <td>
                     <OperatorCellEditor
+                      kind="main-skill"
+                      label="修改通用技能等级"
                       :value="operator.mainSkillLevel"
                       :min="1"
                       :max="7"
-                      :disabled="isSavingManual"
-                      @commit="saveOperatorField(operator, 'mainSkillLevel', $event)"
+                      :disabled="!canEditOperators"
+                      @commit="updateOperatorField(operator, 'mainSkillLevel', $event)"
                     />
                   </td>
                   <td>
@@ -948,14 +1008,24 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="skillIconUrl(operator.id, 0)"
                         variant="overlay"
+                        kind="skill"
+                        label="修改技能1专精"
                         :value="operator.skill1"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'skill1', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'skill1', $event)"
                       >
-                        <span class="operator-roster-progress-icon" :title="skillTitle(operator.id, 0, operator.skill1)">
-                          <img class="operator-roster-skill-image" :src="skillIconUrl(operator.id, 0)" alt="" loading="lazy" />
+                        <span
+                          class="operator-roster-progress-icon"
+                          :title="skillTitle(operator.id, 0, operator.skill1)"
+                        >
+                          <img
+                            class="operator-roster-skill-image"
+                            :src="skillIconUrl(operator.id, 0)"
+                            alt=""
+                            loading="lazy"
+                          />
                           <img
                             v-if="operator.skill1 > 0"
                             class="operator-roster-rank-badge"
@@ -972,14 +1042,24 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="skillIconUrl(operator.id, 1)"
                         variant="overlay"
+                        kind="skill"
+                        label="修改技能2专精"
                         :value="operator.skill2"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'skill2', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'skill2', $event)"
                       >
-                        <span class="operator-roster-progress-icon" :title="skillTitle(operator.id, 1, operator.skill2)">
-                          <img class="operator-roster-skill-image" :src="skillIconUrl(operator.id, 1)" alt="" loading="lazy" />
+                        <span
+                          class="operator-roster-progress-icon"
+                          :title="skillTitle(operator.id, 1, operator.skill2)"
+                        >
+                          <img
+                            class="operator-roster-skill-image"
+                            :src="skillIconUrl(operator.id, 1)"
+                            alt=""
+                            loading="lazy"
+                          />
                           <img
                             v-if="operator.skill2 > 0"
                             class="operator-roster-rank-badge"
@@ -996,14 +1076,24 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="skillIconUrl(operator.id, 2)"
                         variant="overlay"
+                        kind="skill"
+                        label="修改技能3专精"
                         :value="operator.skill3"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'skill3', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'skill3', $event)"
                       >
-                        <span class="operator-roster-progress-icon" :title="skillTitle(operator.id, 2, operator.skill3)">
-                          <img class="operator-roster-skill-image" :src="skillIconUrl(operator.id, 2)" alt="" loading="lazy" />
+                        <span
+                          class="operator-roster-progress-icon"
+                          :title="skillTitle(operator.id, 2, operator.skill3)"
+                        >
+                          <img
+                            class="operator-roster-skill-image"
+                            :src="skillIconUrl(operator.id, 2)"
+                            alt=""
+                            loading="lazy"
+                          />
                           <img
                             v-if="operator.skill3 > 0"
                             class="operator-roster-rank-badge"
@@ -1020,15 +1110,27 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="equipIconUrl(operator.id, 'X')"
                         variant="overlay"
+                        kind="module"
+                        label="修改模组X等级"
                         :value="operator.equipX"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'equipX', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'equipX', $event)"
                       >
-                        <span class="operator-roster-progress-icon operator-roster-progress-icon--mod" :title="equipTitle(operator.id, 'X', operator.equipX)">
-                          <img class="operator-roster-equip-image" :src="equipIconUrl(operator.id, 'X')" alt="" loading="lazy" />
-                          <span class="operator-roster-equip-label">{{ equipLabel(operator.id, 'X') }}</span>
+                        <span
+                          class="operator-roster-progress-icon operator-roster-progress-icon--mod"
+                          :title="equipTitle(operator.id, 'X', operator.equipX)"
+                        >
+                          <img
+                            class="operator-roster-equip-image"
+                            :src="equipIconUrl(operator.id, 'X')"
+                            alt=""
+                            loading="lazy"
+                          />
+                          <span class="operator-roster-equip-label">{{
+                            equipLabel(operator.id, 'X')
+                          }}</span>
                           <img
                             v-if="operator.equipX > 0"
                             class="operator-roster-rank-badge"
@@ -1045,15 +1147,27 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="equipIconUrl(operator.id, 'Y')"
                         variant="overlay"
+                        kind="module"
+                        label="修改模组Y等级"
                         :value="operator.equipY"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'equipY', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'equipY', $event)"
                       >
-                        <span class="operator-roster-progress-icon operator-roster-progress-icon--mod" :title="equipTitle(operator.id, 'Y', operator.equipY)">
-                          <img class="operator-roster-equip-image" :src="equipIconUrl(operator.id, 'Y')" alt="" loading="lazy" />
-                          <span class="operator-roster-equip-label">{{ equipLabel(operator.id, 'Y') }}</span>
+                        <span
+                          class="operator-roster-progress-icon operator-roster-progress-icon--mod"
+                          :title="equipTitle(operator.id, 'Y', operator.equipY)"
+                        >
+                          <img
+                            class="operator-roster-equip-image"
+                            :src="equipIconUrl(operator.id, 'Y')"
+                            alt=""
+                            loading="lazy"
+                          />
+                          <span class="operator-roster-equip-label">{{
+                            equipLabel(operator.id, 'Y')
+                          }}</span>
                           <img
                             v-if="operator.equipY > 0"
                             class="operator-roster-rank-badge"
@@ -1070,15 +1184,27 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="equipIconUrl(operator.id, 'D')"
                         variant="overlay"
+                        kind="module"
+                        label="修改模组D等级"
                         :value="operator.equipD"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'equipD', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'equipD', $event)"
                       >
-                        <span class="operator-roster-progress-icon operator-roster-progress-icon--mod" :title="equipTitle(operator.id, 'D', operator.equipD)">
-                          <img class="operator-roster-equip-image" :src="equipIconUrl(operator.id, 'D')" alt="" loading="lazy" />
-                          <span class="operator-roster-equip-label">{{ equipLabel(operator.id, 'D') }}</span>
+                        <span
+                          class="operator-roster-progress-icon operator-roster-progress-icon--mod"
+                          :title="equipTitle(operator.id, 'D', operator.equipD)"
+                        >
+                          <img
+                            class="operator-roster-equip-image"
+                            :src="equipIconUrl(operator.id, 'D')"
+                            alt=""
+                            loading="lazy"
+                          />
+                          <span class="operator-roster-equip-label">{{
+                            equipLabel(operator.id, 'D')
+                          }}</span>
                           <img
                             v-if="operator.equipD > 0"
                             class="operator-roster-rank-badge"
@@ -1095,15 +1221,27 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="equipIconUrl(operator.id, 'A')"
                         variant="overlay"
+                        kind="module"
+                        label="修改模组A等级"
                         :value="operator.equipA"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'equipA', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'equipA', $event)"
                       >
-                        <span class="operator-roster-progress-icon operator-roster-progress-icon--mod" :title="equipTitle(operator.id, 'A', operator.equipA)">
-                          <img class="operator-roster-equip-image" :src="equipIconUrl(operator.id, 'A')" alt="" loading="lazy" />
-                          <span class="operator-roster-equip-label">{{ equipLabel(operator.id, 'A') }}</span>
+                        <span
+                          class="operator-roster-progress-icon operator-roster-progress-icon--mod"
+                          :title="equipTitle(operator.id, 'A', operator.equipA)"
+                        >
+                          <img
+                            class="operator-roster-equip-image"
+                            :src="equipIconUrl(operator.id, 'A')"
+                            alt=""
+                            loading="lazy"
+                          />
+                          <span class="operator-roster-equip-label">{{
+                            equipLabel(operator.id, 'A')
+                          }}</span>
                           <img
                             v-if="operator.equipA > 0"
                             class="operator-roster-rank-badge"
@@ -1120,15 +1258,27 @@ void loadOperatorStaticData().then((data) => {
                       <OperatorCellEditor
                         v-if="equipIconUrl(operator.id, 'B')"
                         variant="overlay"
+                        kind="module"
+                        label="修改模组B等级"
                         :value="operator.equipB"
                         :min="0"
                         :max="3"
-                        :disabled="isSavingManual"
-                        @commit="saveOperatorField(operator, 'equipB', $event)"
+                        :disabled="!canEditOperators"
+                        @commit="updateOperatorField(operator, 'equipB', $event)"
                       >
-                        <span class="operator-roster-progress-icon operator-roster-progress-icon--mod" :title="equipTitle(operator.id, 'B', operator.equipB)">
-                          <img class="operator-roster-equip-image" :src="equipIconUrl(operator.id, 'B')" alt="" loading="lazy" />
-                          <span class="operator-roster-equip-label">{{ equipLabel(operator.id, 'B') }}</span>
+                        <span
+                          class="operator-roster-progress-icon operator-roster-progress-icon--mod"
+                          :title="equipTitle(operator.id, 'B', operator.equipB)"
+                        >
+                          <img
+                            class="operator-roster-equip-image"
+                            :src="equipIconUrl(operator.id, 'B')"
+                            alt=""
+                            loading="lazy"
+                          />
+                          <span class="operator-roster-equip-label">{{
+                            equipLabel(operator.id, 'B')
+                          }}</span>
                           <img
                             v-if="operator.equipB > 0"
                             class="operator-roster-rank-badge"
@@ -1146,7 +1296,7 @@ void loadOperatorStaticData().then((data) => {
           </div>
 
           <p class="operator-roster-hint">
-            练度修改会保存到你的「手动修改版」个人副本，不会改写森空岛导入的数据；带「手动」标记的行表示当前用的是手动值。
+            修改先保留在当前页面，关闭手动修改开关后仍会保留；点击「手动上传」仅提交修改过的干员（包含取消招募），筛选和分页不会影响上传范围。
           </p>
 
           <div class="operator-roster-pagination">
@@ -1283,10 +1433,7 @@ void loadOperatorStaticData().then((data) => {
                 <strong>{{ binding.nickName || binding.uid }}</strong>
                 <small>{{ binding.channelName }} · UID {{ binding.uid }}</small>
               </span>
-              <v-icon
-                :icon="isUploading ? 'mdi-loading' : 'mdi-arrow-right'"
-                size="18"
-              ></v-icon>
+              <v-icon :icon="isUploading ? 'mdi-loading' : 'mdi-arrow-right'" size="18"></v-icon>
             </button>
           </div>
           <p v-if="actionError" class="operator-import-error">{{ actionError }}</p>
@@ -1876,6 +2023,61 @@ void loadOperatorStaticData().then((data) => {
   gap: 8px;
 }
 
+.operator-manual-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--site-line);
+  border-bottom: 1px solid var(--site-line);
+}
+
+.operator-manual-switch {
+  flex: 0 0 auto;
+}
+
+.operator-manual-status {
+  flex: 1 1 180px;
+  color: var(--site-muted);
+  font-size: 12px;
+}
+
+.operator-roster-owned {
+  min-width: 48px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.operator-roster-owned--yes {
+  background: #1976d2;
+}
+
+.operator-roster-owned--no {
+  background: #c94153;
+}
+
+.operator-roster-owned:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.operator-roster-owned:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 3px;
+}
+
+.operator-roster-owned:disabled {
+  cursor: default;
+}
+
 .operator-editor-toolbar-controls {
   display: grid;
   grid-template-columns: minmax(190px, 1.5fr) 126px auto;
@@ -1892,7 +2094,7 @@ void loadOperatorStaticData().then((data) => {
   margin: 0;
 }
 
-/* ---- 只读干员表格 ---- */
+/* ---- 干员表格 ---- */
 .operator-roster-table-wrap {
   overflow-x: auto;
 }
