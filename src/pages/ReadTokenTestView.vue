@@ -67,40 +67,12 @@ async function testRead(item: GameTest): Promise<void> {
   }
 
   try {
-    if (item.game === 'arknights') {
-      const result = await read('/oauth2/ak-accounts/operators')
-      item.message = isSuccess(result) ? '默认数据读取成功。' : '读取失败，请查看返回 JSON。'
-      return
-    }
-
-    const accounts = await read('/oauth2/ef-accounts')
-    if (!isSuccess(accounts)) {
-      item.message = '读取失败，请查看返回 JSON。'
-      return
-    }
-    const body = accounts.body as Record<string, unknown>
-    if (!Array.isArray(body.data)) {
-      item.message = '账号列表格式不正确，请查看返回 JSON。'
-      return
-    }
-    if (!body.data.length) {
-      item.message = 'Token 读取成功，暂无已导入的账号。'
-      return
-    }
-
-    for (const account of body.data) {
-      if (controller.signal.aborted) return
-      if (!isRecord(account)) throw new Error('账号列表中存在无效条目')
-      if (typeof account.roleId !== 'string' || !account.roleId) throw new Error('账号缺少 roleId')
-      const params = new URLSearchParams({
-        roleId: account.roleId,
-        serverId: String(account.serverId ?? ''),
-      })
-      await read(`/oauth2/ef-accounts/player-data?${params}`)
-    }
-    item.message = item.results.every(isSuccess)
-      ? '全部接口读取成功。'
-      : '部分接口读取失败，请查看返回 JSON。'
+    const result = await read(
+      item.game === 'arknights'
+        ? '/oauth2/ak-accounts/operators'
+        : '/oauth2/ef-accounts/player-data',
+    )
+    item.message = isSuccess(result) ? '默认数据读取成功。' : '读取失败，请查看返回 JSON。'
   } catch (error) {
     if (controller.signal.aborted) return
     item.message = '读取失败。'
@@ -128,10 +100,6 @@ onBeforeUnmount(() => {
 
     <section v-for="item in tests" :key="item.game" :data-game="item.game">
       <h2>{{ item.title }}</h2>
-      <p v-if="item.game === 'endfield'">
-        账号列表接口：
-        <code>GET {{ UC_BASE_URL }}/oauth2/ef-accounts</code>
-      </p>
       <p>
         数据读取接口：
         <code
@@ -139,7 +107,7 @@ onBeforeUnmount(() => {
           }}{{
             item.game === 'arknights'
               ? '/oauth2/ak-accounts/operators'
-              : '/oauth2/ef-accounts/player-data?roleId={roleId}&serverId={serverId}'
+              : '/oauth2/ef-accounts/player-data'
           }}</code
         >
       </p>
