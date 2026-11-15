@@ -67,6 +67,8 @@ export interface AkOperatorListVO {
 export interface AkOperatorSaveItem {
   /** 稳定干员编码，1-64 位可见 ASCII 字符；同一请求内不可重复 */
   id: string
+  /** 是否持有：0 否 1 是；手动版缺省按 0 处理 */
+  owned?: number | null | ''
   /** 干员星级，0~6 */
   rarity?: number | null | ''
   /** 干员等级，0~65535 */
@@ -140,6 +142,37 @@ export function getAkOperators(akUid: string): Promise<UcResponse<AkOperatorList
   return ucRequest<AkOperatorListVO>({
     method: 'GET',
     url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(akUid)}`,
+  })
+}
+
+/**
+ * 读取当前用户的手动修改版干员数据（GET /user/ak-accounts/operators?source=manual）
+ * 手动版是按用户归属的个人副本，与具体游戏账号无关；`source=manual` 时 akUid 必须等于
+ * 当前用户中心 UID（后端强校验）。只返回 owned=1 的记录，没有数据时 items 为空数组。
+ * @param ucUid 当前登录用户的用户中心 UID
+ * @returns 手动版干员记录
+ */
+export function getManualOperators(ucUid: string): Promise<UcResponse<AkOperatorListVO>> {
+  return ucRequest<AkOperatorListVO>({
+    method: 'GET',
+    url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(ucUid)}&source=manual`,
+  })
+}
+
+/**
+ * 保存当前用户的手动修改版干员数据（POST /user/ak-accounts/manual-operators/save，需登录）
+ * - 传入的干员有则按属性比较后更新、无则新增，未传入的不处理也不删除
+ * - 数值字段省略 / null / 空串都按 0 落库（不表示沿用旧值），因此更新单个字段也要带上整行数值
+ * @param operators 干员记录数组，不能为空
+ * @returns 新增 / 更新 / 未变化 的记录数
+ */
+export function saveManualOperators(
+  operators: AkOperatorSaveItem[],
+): Promise<UcResponse<AkOperatorSaveResultVO>> {
+  return ucRequest<AkOperatorSaveResultVO>({
+    method: 'POST',
+    url: '/user/ak-accounts/manual-operators/save',
+    data: { operators },
   })
 }
 

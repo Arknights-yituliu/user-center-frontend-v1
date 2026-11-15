@@ -109,7 +109,7 @@ const router = createRouter({
       name: 'GAME_DATA',
       component: GameDataView,
       meta: {
-        title: '游戏数据',
+        title: '游戏数据·明日方舟',
       },
     },
     { path: '/user/arknights-game-data', redirect: { name: 'GAME_DATA' } },
