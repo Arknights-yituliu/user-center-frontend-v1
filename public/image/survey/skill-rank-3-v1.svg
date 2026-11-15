@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="236" height="236" viewBox="0 0 236 236" role="img" aria-labelledby="title">
+  <title id="title">技能专精三级</title>
+  <rect width="236" height="236" fill="#000"/>
+  <g fill="#fff">
+    <circle cx="117" cy="75" r="37"/>
+    <circle cx="163" cy="150" r="37"/>
+    <circle cx="75" cy="150" r="37"/>
+  </g>
+</svg>
