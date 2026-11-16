@@ -366,6 +366,10 @@ onMounted(() => {
           通用数据维护
           <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
         </RouterLink>
+        <RouterLink class="project-visit-button" to="/skland-import">
+          森空岛数据同步
+          <v-icon icon="mdi-cloud-sync-outline" size="16"></v-icon>
+        </RouterLink>
         <RouterLink class="project-visit-button" to="/read-token-test">
           测试读取 Token
         </RouterLink>

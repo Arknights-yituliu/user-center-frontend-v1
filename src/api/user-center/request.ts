@@ -38,6 +38,11 @@ export interface UcRequestConfig {
   token?: string
   /** 自定义服务地址，默认使用当前环境的 UC 请求地址 */
   baseUrl?: string
+  /**
+   * 静默模式：失败时不弹全局气泡，由调用方自行展示错误
+   * （森空岛凭证桥接与导入页需要把错误汇总到页内底部，避免双份提示）
+   */
+  silent?: boolean
 }
 
 /**
@@ -113,6 +118,7 @@ export function ucRequest<T = unknown>({
   auth = true,
   token = '',
   baseUrl = UC_BASE_URL,
+  silent = false,
 }: UcRequestConfig = {}): Promise<UcResponse<T>> {
   return new Promise((resolve, reject) => {
     // 来源客户端标识：登录/注册据此写入会话，其余接口用于客户端维度隔离与审计
@@ -140,7 +146,7 @@ export function ucRequest<T = unknown>({
           resolve(body)
         } else {
           const msg = (body && body.msg) || '请求失败'
-          createMessage({ text: msg, type: 'error' })
+          if (!silent) createMessage({ text: msg, type: 'error' })
           reject(body)
         }
       })
@@ -155,7 +161,7 @@ export function ucRequest<T = unknown>({
             msg = error.message
           }
         }
-        createMessage({ text: `${msg}（${url}）`, type: 'error' })
+        if (!silent) createMessage({ text: `${msg}（${url}）`, type: 'error' })
         reject(error)
       })
   })

@@ -121,6 +121,17 @@ const router = createRouter({
     },
     { path: '/user/endfield-game-data', redirect: { name: 'ENDFIELD_GAME_DATA' } },
     {
+      // 森空岛数据同步：一次凭证 + 一次绑定列表，同时导入两个游戏的账号
+      path: '/skland-import',
+      name: 'SKLAND_IMPORT',
+      component: () => import('../pages/SklandImportView.vue'),
+      meta: {
+        title: '森空岛数据同步',
+        // 写入必须走正式会话，守卫用 !getUcToken() 判定
+        requiresAuth: true,
+      },
+    },
+    {
       path: '/read-token-test',
       name: 'READ_TOKEN_TEST',
       component: () => import('../pages/ReadTokenTestView.vue'),

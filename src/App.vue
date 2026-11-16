@@ -15,6 +15,7 @@ const siteNavigation = [
   { to: '/projects', label: '工具列表', icon: 'mdi-view-grid-outline' },
   { to: '/arknights-game-data', label: '游戏数据·明日方舟', icon: 'mdi-gamepad-variant-outline' },
   { to: '/endfield-game-data', label: '游戏数据·终末地', icon: 'mdi-cube-outline' },
+  { to: '/skland-import', label: '森空岛数据同步', icon: 'mdi-cloud-sync-outline' },
   { to: '/user-guide', label: '用户指南', icon: 'mdi-book-open-variant-outline' },
   { to: '/developer', label: '开发者中心', icon: 'mdi-console-line' },
   { to: '/about', label: '关于', icon: 'mdi-information-outline' },

@@ -293,6 +293,18 @@ async function handleSubmitNickname(): Promise<void> {
             </span>
             <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
           </RouterLink>
+          <RouterLink class="module-action-link" to="/skland-import">
+            <span class="module-action-icon">
+              <v-icon icon="mdi-cloud-sync-outline" size="22"></v-icon>
+            </span>
+            <span class="module-action-copy">
+              <strong class="module-action-title">同步森空岛数据</strong>
+              <small class="module-action-description"
+                >一次凭证同时导入明日方舟与终末地的账号数据</small
+              >
+            </span>
+            <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
+          </RouterLink>
         </div>
       </section>
 

@@ -43,96 +43,73 @@ function setup() {
     if (response instanceof Error) throw response
     return response
   }
-  const axios = { get: transport }
-  const shared = loadModule('../src/api/skland-operator-api.ts', {
-    axios,
-    './BASE_URL': { BACKEND_BASE_URL: 'https://backend.test' },
-  })
+  const axios = { get: transport, isAxiosError: () => false }
   const session = { ucRequest: transport, getUcToken: () => 'formal-session' }
-  const skland = loadModule('../src/api/skland-endfield-api.ts', {
-    axios,
-    './skland-operator-api': shared,
-    './user-center/request': session,
-  })
+  const core = loadModule('../src/api/skland-core.ts', { axios, './user-center/request': session })
+  const endfield = loadModule('../src/api/skland-endfield-api.ts', { './skland-core': core })
   const cloud = loadModule('../src/api/user-center/ef-account-api.ts', { './request': session })
-  return { requests, responses, shared, skland, cloud }
+  return { requests, responses, core, endfield, cloud }
 }
 
 const credential = { cred: 'test-cred', token: 'test-token' }
 const ok = (data) => ({ status: 200, data: { code: 0, data } })
-const binding = (entries) => ok({ list: [{ appCode: 'endfield', bindingList: entries }] })
+const bridgeOk = (data) => ({ code: 200, data })
 const role = { roleId: '42', serverId: '1', userId: 'account', nickname: '管理员' }
 
-test('direct cred refreshes signing token, while credential pairs require no request', async () => {
-  const { skland, responses, requests } = setup()
-  responses.push(ok({ token: 'refreshed' }))
-  assert.equal((await skland.getEndfieldCredential(' cred-only ')).token, 'refreshed')
-  assert.equal(requests[0][1].headers.cred, 'cred-only')
-  assert.equal((await skland.getEndfieldCredential('cred,token')).cred, 'cred')
-  assert.equal(requests.length, 1)
-  await assert.rejects(skland.getEndfieldCredential(' '), /请输入/)
+test('credential input must be a cred,token pair and never touches the network', async () => {
+  const { core, requests } = setup()
+  const pair = core.resolveCredential(' test-cred , test-token ')
+  assert.equal(pair.cred, credential.cred)
+  assert.equal(pair.token, credential.token)
+  assert.throws(() => core.resolveCredential('cred-only'), /cred,token/)
+  assert.throws(() => core.resolveCredential(' '), /cred,token/)
+  // 砍掉单 cred 入口后，凭证解析是纯函数，不再发起 /auth/refresh 之类的请求
+  assert.equal(requests.length, 0)
 })
 
-test('role extraction filters other games and deleted bindings, normalizes and deduplicates IDs', async () => {
-  const { skland, responses } = setup()
-  responses.push(
-    binding([
-      {
-        uid: 'fallback',
-        roles: [
-          { roleId: 42, serverId: 1, nickname: '管理员' },
-          { roleId: 42, serverId: 1 },
-          { roleId: '' },
-        ],
-      },
-      { uid: 'deleted', isDelete: true, roles: [{ roleId: 43, serverId: 1 }] },
-    ]),
-    ok({ teenager: { userId: 123 } }),
+test('bridge and official endpoints judge success by different codes', async () => {
+  const { core, endfield, responses } = setup()
+
+  // 桥接（UC 体系）要求 code === 200：返回森空岛体系的 0 必须判为失败
+  responses.push({ code: 0, data: credential })
+  await assert.rejects(
+    core.getSklandCredentialByOfficialToken('official'),
+    (error) => error instanceof core.SklandRequestError && error.code === 0,
   )
-  const result = await skland.getEndfieldRoles(credential)
-  assert.equal(result.length, 1)
-  assert.equal(result[0].roleId, '42')
-  assert.equal(result[0].serverId, '1')
-  assert.equal(result[0].userId, '123')
-})
 
-test('missing teenager data falls back to the UID of each binding independently', async () => {
-  const { skland, responses } = setup()
-  responses.push(
-    binding([
-      { uid: 'account-a', roles: [{ roleId: 42, serverId: 1 }] },
-      { uid: 'account-b', roles: [{ roleId: 43, serverId: 1 }] },
-    ]),
-    new Error('teenager unavailable'),
+  // 官方签名接口要求 code === 0：返回 UC 体系的 200 必须判为失败
+  responses.push({ status: 200, data: { code: 200, data: { detail: { base: { roleId: '42' } } } } })
+  await assert.rejects(
+    endfield.getEndfieldCardDetail(credential, role),
+    (error) => error instanceof core.SklandRequestError && error.code === 200,
   )
-  const result = await skland.getEndfieldRoles(credential)
-  assert.equal(result[0].userId, 'account-a')
-  assert.equal(result[1].userId, 'account-b')
 })
 
-test('expired credentials abort role lookup instead of silently falling back', async () => {
-  const { skland, responses } = setup()
-  responses.push(binding([{ uid: 'account', roles: [role] }]), {
-    status: 200,
-    data: { code: 10002, message: 'expired' },
-  })
-  await assert.rejects(skland.getEndfieldRoles(credential), skland.isEndfieldCredentialExpired)
-})
-
-test('missing or malformed game groups produce an empty role list', async () => {
-  const { skland, responses } = setup()
-  for (const data of [{ list: [{ appCode: 'arknights' }] }, { list: {} }, null]) {
-    responses.push(ok(data))
-    assert.equal((await skland.getEndfieldRoles(credential)).length, 0)
-  }
+test('credential and QR bridges use public UC endpoints without session auth', async () => {
+  const { core, responses, requests } = setup()
+  responses.push(
+    bridgeOk(credential),
+    bridgeOk({ scanId: 'scan', qrContent: 'qr-content' }),
+    bridgeOk({ status: 101 }),
+  )
+  await core.getSklandCredentialByOfficialToken('official')
+  await core.createSklandQrCode()
+  await core.checkSklandQrStatus('a+b')
+  assert.equal(requests[0][0].url, '/skland/hg/cred-token')
+  assert.equal(requests[0][0].data.token, 'official')
+  assert.equal(requests[1][0].url, '/skland/qr/create')
+  assert.equal(requests[2][0].url, '/skland/qr/check?scanId=a%2Bb')
+  // auth: false 表示桥接不携带会话；silent: true 表示失败不弹全局气泡，由页面自行展示
+  assert.ok(requests.every(([config]) => config.auth === false))
+  assert.ok(requests.every(([config]) => config.silent === true))
 })
 
 test('card query and HMAC signature use exactly the same encoded parameter order', async () => {
-  const { skland, responses, requests } = setup()
+  const { endfield, responses, requests } = setup()
   const detail = { base: { roleId: '42' }, extraFutureField: { keep: true } }
   responses.push(ok({ detail }))
   assert.equal(
-    (await skland.getEndfieldCardDetail(credential, { ...role, userId: 'a+b&c' })).extraFutureField
+    (await endfield.getEndfieldCardDetail(credential, { ...role, userId: 'a+b&c' })).extraFutureField
       .keep,
     true,
   )
@@ -147,35 +124,33 @@ test('card query and HMAC signature use exactly the same encoded parameter order
   assert.equal(headers.cred, credential.cred)
 })
 
-test('empty or mismatched card data cannot be imported', async () => {
-  const { skland, responses, requests } = setup()
-  for (const detail of [undefined, {}, { base: { roleId: 'someone-else' } }]) {
-    responses.push(ok({ detail }))
-    await assert.rejects(skland.getEndfieldCardDetail(credential, role), /角色|数据/)
-  }
-  const count = requests.length
-  await assert.rejects(
-    skland.getEndfieldCardDetail(credential, { ...role, userId: '' }),
-    /账号标识/,
-  )
-  assert.equal(requests.length, count)
+test('card detail omits userId when it is unavailable and sends it when present', async () => {
+  const { endfield, responses, requests } = setup()
+  responses.push(ok({ detail: { base: { roleId: '42' } } }))
+  await endfield.getEndfieldCardDetail(credential, {
+    roleId: '42',
+    serverId: '1',
+    nickname: '管理员',
+  })
+  assert.equal(new URL(requests[0][0]).search.slice(1), 'roleId=42&serverId=1')
+
+  responses.push(ok({ detail: { base: { roleId: '42' } } }))
+  await endfield.getEndfieldCardDetail(credential, {
+    roleId: '42',
+    serverId: '1',
+    nickname: '管理员',
+    userId: 'account',
+  })
+  assert.equal(new URL(requests[1][0]).search.slice(1), 'roleId=42&serverId=1&userId=account')
 })
 
-test('credential and QR bridges use public UC endpoints without session auth', async () => {
-  const { skland, responses, requests } = setup()
-  responses.push(
-    { data: credential },
-    { data: { scanId: 'scan', qrContent: 'qr-content' } },
-    { data: { status: 101 } },
-  )
-  await skland.getEndfieldCredentialByOfficialToken('official')
-  await skland.createEndfieldQrCode()
-  await skland.checkEndfieldQrStatus('a+b')
-  assert.equal(requests[0][0].url, '/skland/hg/cred-token')
-  assert.equal(requests[0][0].data.token, 'official')
-  assert.equal(requests[1][0].url, '/skland/qr/create')
-  assert.equal(requests[2][0].url, '/skland/qr/check?scanId=a%2Bb')
-  assert.ok(requests.every(([config]) => config.auth === false))
+test('empty or mismatched card data cannot be imported', async () => {
+  const { endfield, responses, requests } = setup()
+  for (const detail of [undefined, {}, { base: { roleId: 'someone-else' } }]) {
+    responses.push(ok({ detail }))
+    await assert.rejects(endfield.getEndfieldCardDetail(credential, role), /角色|数据/)
+  }
+  assert.equal(requests.length, 3)
 })
 
 test('cloud upload preserves complete player data and uses the formal UC session', async () => {

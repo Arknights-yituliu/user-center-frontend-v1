@@ -1,0 +1,595 @@
+/**
+ * 森空岛数据同步页样式
+ *
+ * 独立于两个旧游戏数据页的 scoped 样式，统一使用 `si-` 前缀，
+ * 配色与间距沿用站点级 --site-* 变量（定义见 App.vue）。
+ */
+
+.si-page {
+  /* 选中态专用绿色：与站点蓝/青区分，保证「已选账号」一眼可辨 */
+  --si-selected: #12a05c;
+  --si-selected-strong: #0c7f47;
+  --si-selected-soft: #e6f8ee;
+
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 40px 28px 90px;
+}
+
+/* ---------- 通用区块 ---------- */
+
+.si-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.si-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.si-label {
+  margin: 0 0 8px;
+  color: var(--site-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.si-title {
+  margin: 0;
+  color: var(--site-ink);
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.si-desc {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--site-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.si-panel {
+  padding: 24px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  box-shadow: 8px 8px 0 var(--site-accent-soft);
+}
+
+.si-hint {
+  margin: 0;
+  color: var(--site-muted);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.si-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 4px solid var(--site-pink);
+  background: rgb(239 120 168 / 0.12);
+  color: #9c2451;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.si-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.si-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.si-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.si-step-index {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  background: var(--site-line);
+  color: var(--site-surface);
+  font-size: 11px;
+}
+
+.si-step-active {
+  border-color: var(--site-ink);
+  color: var(--site-ink);
+}
+
+.si-step-active .si-step-index {
+  background: var(--site-accent);
+}
+
+.si-step-done .si-step-index {
+  background: var(--site-green);
+}
+
+/* ---------- 凭证 ---------- */
+
+.si-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.si-method {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--site-ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.si-method:hover {
+  transform: translate(-2px, -2px);
+  border-color: var(--site-ink);
+  box-shadow: 4px 4px 0 var(--site-accent-soft);
+}
+
+.si-method.is-active {
+  border-color: var(--site-ink);
+  border-left-width: 6px;
+  box-shadow: 6px 6px 0 var(--site-accent);
+}
+
+.si-method-number {
+  color: var(--site-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.si-method strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.si-method span:last-child {
+  color: var(--site-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.si-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.si-input {
+  width: 100%;
+  min-height: 74px;
+  padding: 12px 14px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--site-ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.si-input:focus {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 1px;
+}
+
+.si-qr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.si-qr-canvas {
+  display: grid;
+  width: 248px;
+  height: 248px;
+  place-items: center;
+  border: 1px solid var(--site-line);
+  background: #fff;
+}
+
+.si-qr-canvas img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.si-qr-canvas p {
+  margin: 0;
+  padding: 0 18px;
+  color: var(--site-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.si-qr-status {
+  margin: 0;
+  color: var(--site-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---------- 选游戏与账号 ---------- */
+
+.si-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.si-scope-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 9px 12px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.si-scope-item input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--site-accent);
+  cursor: pointer;
+}
+
+.si-scope-item.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.si-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.si-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+}
+
+.si-column.is-muted {
+  background: rgb(169 221 226 / 0.12);
+}
+
+.si-column-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--site-line);
+}
+
+.si-column-head strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.si-column-head span {
+  color: var(--site-muted);
+  font-size: 11.5px;
+}
+
+.si-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--site-ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.si-account:hover {
+  border-color: var(--site-ink);
+}
+
+/* 选中态：绿色实心环 + 浅绿底 + 名称加粗，明显强于未选中的灰边卡片 */
+.si-account.is-active {
+  border-color: var(--si-selected-strong);
+  background: var(--si-selected-soft);
+  box-shadow:
+    inset 0 0 0 2px var(--si-selected),
+    5px 5px 0 rgb(18 160 92 / 0.22);
+}
+
+.si-account.is-active .si-account-name {
+  color: var(--si-selected-strong);
+  font-weight: 800;
+}
+
+.si-account.is-active .si-account-meta {
+  color: #2f7d58;
+}
+
+.si-account:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.si-account-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.si-account-check {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  background: var(--si-selected);
+  color: #fff;
+}
+
+.si-account-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.si-account-meta {
+  color: var(--site-muted);
+  font-size: 12px;
+}
+
+.si-badge {
+  padding: 2px 7px;
+  border: 1px solid var(--site-accent);
+  color: var(--site-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.si-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--site-line);
+  color: var(--site-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* ---------- 确认条 ---------- */
+
+.si-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.si-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  font-size: 13px;
+}
+
+.si-confirm-game {
+  padding: 2px 8px;
+  background: var(--site-accent-soft);
+  color: var(--site-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.si-confirm-row strong {
+  font-weight: 700;
+}
+
+.si-confirm-meta {
+  margin-left: auto;
+  color: var(--site-muted);
+  font-size: 12px;
+}
+
+/* ---------- 进度与结果 ---------- */
+
+.si-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.si-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--site-line);
+  border-left-width: 6px;
+  background: var(--site-surface);
+  font-size: 13px;
+}
+
+.si-result.is-ok {
+  border-left-color: var(--site-green);
+}
+
+.si-result.is-fail {
+  border-left-color: var(--site-pink);
+}
+
+.si-result-game {
+  min-width: 72px;
+  font-weight: 800;
+}
+
+.si-result-text {
+  color: var(--site-muted);
+  line-height: 1.6;
+}
+
+.si-running {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--site-muted);
+  font-size: 13px;
+}
+
+/* ---------- 底部错误区 ---------- */
+
+.si-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 18px;
+  border: 1px solid var(--site-pink);
+  background: rgb(239 120 168 / 0.08);
+}
+
+.si-footer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.si-footer-head strong {
+  color: #9c2451;
+  font-size: 14px;
+}
+
+.si-footer-head span {
+  color: var(--site-muted);
+  font-size: 12px;
+}
+
+.si-error-row {
+  display: grid;
+  grid-template-columns: 72px 96px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgb(239 120 168 / 0.4);
+  background: var(--site-surface);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.si-error-stage {
+  color: var(--site-muted);
+  font-weight: 700;
+}
+
+.si-error-message {
+  color: #9c2451;
+  word-break: break-word;
+}
+
+.si-error-code {
+  color: var(--site-muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 11.5px;
+}
+
+/* ---------- 登录引导 ---------- */
+
+.si-login {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 28px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  box-shadow: 8px 8px 0 var(--site-accent-soft);
+}
+
+.si-login h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 880px) {
+  .si-methods,
+  .si-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .si-error-row {
+    grid-template-columns: 1fr;
+  }
+
+  .si-page {
+    padding: 28px 18px 70px;
+  }
+}

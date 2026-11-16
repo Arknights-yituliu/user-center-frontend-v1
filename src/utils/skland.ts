@@ -1,62 +1,20 @@
-import axios from 'axios'
-import hmacSHA256 from 'crypto-js/hmac-sha256'
-import md5 from 'crypto-js/md5'
-import { createMessage } from './message'
 import { getOperatorEntry, loadOperatorStaticData, type OperatorStaticData } from './operator-table'
+import { requestSkland, type SklandCredential } from '../api/skland-core'
 
 /**
  * 森空岛（Skland）数据工具类
  *
- * 由 frontend-v2-plus 的 src/utils/survey/skland.js 移植而来，接口签名、请求与数据格式化逻辑保持一致；
+ * 由 frontend-v2-plus 的 src/utils/survey/skland.js 移植而来，接口签名与数据格式化逻辑保持一致；
+ * 签名与请求已统一收敛到 src/api/skland-core.ts，本文件只保留纯解析与转换逻辑。
  * 差异点见各函数注释：
  * 1. 模组分支与星级由 public/data/operator/ 下的干员静态表补全；
  * 2. 参考实现错误上报走 toolAPI.collectLog，本项目暂无对应接口，仅保留消息提示。
  */
 
-/** 森空岛主域名 */
-const SKLAND_DOMAIN = 'https://zonai.skland.com'
-/** 玩家绑定关系接口路径 */
-const PLAYER_BINDING_URL = '/api/v1/game/player/binding'
+export type { SklandCredential }
+
 /** 培养数据（仓库物品 + 干员）接口路径 */
 const CULTIVATE_PLAYER_API = '/api/v1/game/cultivate/player'
-/** 签名使用的固定平台标识 */
-const SKLAND_PLATFORM = '3'
-/** 签名使用的固定设备标识 */
-const SKLAND_DEVICE_ID =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0'
-/** 签名使用的接口版本号 */
-const SKLAND_VERSION = '1.2.0'
-
-/** 森空岛凭证 */
-export interface SklandCredential {
-  /** 账号凭证 */
-  cred: string
-  /** 签名密钥 */
-  token: string
-}
-
-/** 单个绑定账号 */
-export interface SklandBinding {
-  uid: string
-  nickName: string
-  channelName: string
-  channelMasterId: number
-  isOfficial?: boolean
-}
-
-/** 绑定查询结果（与参考实现 getPlayBindingV2 的返回结构保持一致） */
-export interface SklandBindingResult {
-  /** 明日方舟的全部绑定账号 */
-  bindingList: SklandBinding[]
-  /** 选中的账号 uid */
-  uid: string
-  /** 选中的账号昵称 */
-  nickName: string
-  /** 选中的账号渠道名 */
-  channelName: string
-  /** 选中的账号渠道 id */
-  channelMasterId: number
-}
 
 /** 仓库物品项 */
 export interface SklandWarehouseItem {
@@ -115,18 +73,6 @@ interface SklandCultivateCharacter {
   equips?: Array<{ id?: string; level?: number; typeName2?: string } | null>
 }
 
-/** 森空岛接口通用响应包裹 */
-interface SklandApiResponse<T> {
-  code?: number
-  message?: string
-  data?: T
-}
-
-/** 绑定接口响应体 */
-interface SklandBindingPayload {
-  list?: Array<{ appCode?: string; bindingList?: SklandBinding[] }>
-}
-
 /** 培养接口响应体 */
 interface SklandCultivatePayload {
   items?: Array<{ id: string; count: number }>
@@ -135,167 +81,6 @@ interface SklandCultivatePayload {
 
 /** 模组分支名到记录字段的映射 */
 type SklandModuleField = 'equipX' | 'equipY' | 'equipD' | 'equipA' | 'equipB'
-
-/**
- * 生成森空岛接口签名
- * @param path 接口路径，如 /api/v1/game/player/binding
- * @param params 查询串，如 uid=123，可传空串
- * @param token 森空岛 token，作为 HMAC 密钥
- * @returns 参与签名的 timestamp 与最终 sign
- */
-function getSign(path: string, params: string, token: string): { timestamp: string; sign: string } {
-  // 预留 300ms 时钟偏差，避免服务端判定请求过期
-  const timestamp = Math.floor((Date.now() - 300) / 1000).toString()
-
-  const headers = {
-    platform: SKLAND_PLATFORM,
-    timestamp,
-    dId: SKLAND_DEVICE_ID,
-    vName: SKLAND_VERSION,
-  }
-
-  // 与参考实现一致：先做 HMAC-SHA256，再把摘要做一次 MD5
-  const text = path + (params || '') + timestamp + JSON.stringify(headers)
-  const sign = md5(hmacSHA256(text, token).toString()).toString()
-
-  return { timestamp, sign }
-}
-
-/**
- * 生成森空岛接口请求头（含签名）
- * @param url 接口路径，如 /api/v1/game/player/binding
- * @param params 查询串，如 uid=123，可传空串
- * @param cred 森空岛 cred
- * @param token 森空岛 token
- * @returns 可直接用于 axios 的请求头
- */
-export function getHeaders(
-  url: string,
-  params: string,
-  cred: string,
-  token: string,
-): Record<string, string> {
-  const { timestamp, sign } = getSign(url, params, token)
-
-  return {
-    platform: SKLAND_PLATFORM,
-    timestamp,
-    dId: SKLAND_DEVICE_ID,
-    vName: SKLAND_VERSION,
-    cred,
-    sign,
-  }
-}
-
-/**
- * 解析用户粘贴的凭证文本
- * 参考实现会在格式不正确时弹出错误提示，但依旧按逗号切分返回
- * @param text 形如 `cred,token` 的字符串，允许包含引号与空白
- * @returns 解析出的 cred 与 token
- */
-export function getCredAndSecret(text: string): SklandCredential {
-  if (!text.includes(',')) {
-    createMessage({ type: 'error', text: '输入格式不正确,应是一个中间包含逗号的一串字母' })
-  }
-
-  const cleaned = text.replace(/\s+/g, '').replace(/["']/g, '')
-  const textArr = cleaned.split(',')
-
-  return { cred: textArr[0] || '', token: textArr[1] || '' }
-}
-
-/**
- * 获取玩家绑定账号，并按「指定 uid → 官服账号 → 首个账号」的顺序选出默认账号
- * @param defaultAkUid 期望优先选中的 uid，传 '0' 表示不指定
- * @param params 查询串，绑定接口不使用，保留以对齐参考实现
- * @param cred 森空岛 cred
- * @param token 森空岛 token
- * @returns 绑定列表与选中的账号信息
- */
-export async function getPlayBindingV2(
-  defaultAkUid: string,
-  params: string,
-  cred: string,
-  token: string,
-): Promise<SklandBindingResult> {
-  let uid = '0'
-  let nickName = ''
-  let channelName = '默认'
-  let channelMasterId = -1
-
-  const url = `${SKLAND_DOMAIN}${PLAYER_BINDING_URL}`
-  const headers = getHeaders(PLAYER_BINDING_URL, params, cred, token)
-
-  const bindingData: SklandBindingResult = {
-    bindingList: [],
-    uid,
-    nickName,
-    channelName: '官服',
-    channelMasterId: 1,
-  }
-
-  try {
-    const response = await axios.get(url, { headers })
-    const payload = response.data as SklandApiResponse<SklandBindingPayload>
-
-    if (payload.code !== 0) {
-      createMessage({ type: 'error', text: '森空岛CRED错误或失效' })
-      return bindingData
-    }
-
-    const list = payload.data?.list ?? []
-
-    let akBindingList: SklandBinding[] = []
-    for (const item of list) {
-      if (item.appCode === 'arknights') {
-        akBindingList = item.bindingList ?? []
-        break
-      }
-    }
-
-    for (const binding of akBindingList) {
-      if (defaultAkUid !== '0' && binding.uid === defaultAkUid) {
-        uid = binding.uid
-        nickName = binding.nickName
-        channelName = binding.channelName
-        channelMasterId = binding.channelMasterId
-        break
-      }
-
-      if (binding.isOfficial) {
-        uid = binding.uid
-        nickName = binding.nickName
-        channelName = binding.channelName
-        channelMasterId = binding.channelMasterId
-        break
-      }
-    }
-
-    // 参考实现的兜底判断比较的是 undefined（永远不会命中），此处按其本意修正为：
-    // 既没匹配到指定 uid、也没有官服账号时，退回第一个绑定账号
-    if (uid === '0' && akBindingList.length > 0) {
-      const binding = akBindingList[0]!
-      uid = binding.uid
-      nickName = binding.nickName
-      channelName = binding.channelName
-      channelMasterId = binding.channelMasterId
-    }
-
-    bindingData.bindingList = akBindingList
-    bindingData.uid = uid
-    bindingData.nickName = nickName
-    bindingData.channelName = channelName
-    bindingData.channelMasterId = channelMasterId
-  } catch (error) {
-    const message = axios.isAxiosError(error)
-      ? ((error.response?.data as { message?: string } | undefined)?.message ?? error.message)
-      : '未知错误'
-    createMessage({ type: 'error', text: `森空岛：${message}` })
-    return bindingData
-  }
-
-  return bindingData
-}
 
 /**
  * 把森空岛培养接口返回的干员原始数据格式化成干员上传格式
@@ -388,35 +173,17 @@ export async function getWarehouseInfo(
   token: string,
 ): Promise<SklandWarehouseResult> {
   const params = `uid=${akUid}`
-  const headers = getHeaders(CULTIVATE_PLAYER_API, params, cred, token)
-  const url = `${SKLAND_DOMAIN}${CULTIVATE_PLAYER_API}?${params}`
-
-  const data: SklandWarehouseResult = {
-    playerInfo: { akUid },
-    operators: [],
-    itemList: [],
-  }
-
-  const [response, staticData] = await Promise.all([
-    axios.get(url, { headers }),
+  const [payload, staticData] = await Promise.all([
+    requestSkland<SklandCultivatePayload>(CULTIVATE_PLAYER_API, params, { cred, token }),
     loadOperatorStaticData(),
   ])
-  const payload = response.data as SklandApiResponse<SklandCultivatePayload>
 
-  if (payload.code !== 0) {
-    return data
+  const items = payload?.items ?? []
+  const characters = payload?.characters ?? []
+
+  return {
+    playerInfo: { akUid },
+    operators: formattingOperatorData(characters, staticData),
+    itemList: items.map((item) => ({ itemId: item.id, quantity: item.count })),
   }
-
-  const items = payload.data?.items ?? []
-  const characters = payload.data?.characters ?? []
-
-  data.operators = formattingOperatorData(characters, staticData)
-  data.itemList = items.map((item) => ({ itemId: item.id, quantity: item.count }))
-
-  return data
-}
-
-export default {
-  getPlayBindingV2,
-  getWarehouseInfo,
 }

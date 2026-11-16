@@ -1,4 +1,4 @@
-import { ucRequest, type UcResponse } from './request'
+import { getUcToken, ucRequest, type UcResponse } from './request'
 
 /**
  * 用户游戏数据管理接口（/user/ak-accounts）
@@ -133,7 +133,11 @@ export interface AkUploadLimitVO {
  * @returns 已绑定账号列表，无绑定时为空数组
  */
 export function listAkAccounts(): Promise<UcResponse<AkAccountVO[]>> {
-  return ucRequest<AkAccountVO[]>({ method: 'GET', url: '/user/ak-accounts' })
+  return ucRequest<AkAccountVO[]>({
+    method: 'GET',
+    url: '/user/ak-accounts',
+    token: getUcToken(),
+  })
 }
 
 /**
@@ -146,6 +150,7 @@ export function getAkOperators(akUid: string): Promise<UcResponse<AkOperatorList
   return ucRequest<AkOperatorListVO>({
     method: 'GET',
     url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(akUid)}&source=skland`,
+    token: getUcToken(),
   })
 }
 
@@ -160,6 +165,7 @@ export function getManualOperators(ucUid: string): Promise<UcResponse<AkOperator
   return ucRequest<AkOperatorListVO>({
     method: 'GET',
     url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(ucUid)}&source=manual`,
+    token: getUcToken(),
   })
 }
 
@@ -177,6 +183,7 @@ export function saveManualOperators(
     method: 'POST',
     url: '/user/ak-accounts/manual-operators/save',
     data: { operators },
+    token: getUcToken(),
   })
 }
 
@@ -195,5 +202,6 @@ export function saveAkOperators(
     method: 'POST',
     url: '/user/ak-accounts/operators/save',
     data: params,
+    token: getUcToken(),
   })
 }

@@ -1,21 +1,21 @@
-import axios from 'axios'
-import { ucRequest } from './user-center/request'
-import {
-  parseSklandCredential,
-  requestSkland,
-  SklandRequestError,
-  type SklandCredential,
-  type SklandQrCode,
-  type SklandQrStatus,
-} from './skland-operator-api'
+import { requestSkland, SklandRequestError, type SklandCredential } from './skland-core'
 
+/**
+ * 终末地（Endfield）数据接口
+ *
+ * 凭证获取、绑定列表解析与上传分别落在 skland-core 与 skland-ef-adapter，
+ * 这里只保留「卡片详情」这一个森空岛直连接口与相关类型。
+ */
+
+/** 终末地角色 */
 export interface EndfieldRole {
   roleId: string
   serverId: string
   nickname: string
   serverName?: string
   level?: number
-  userId: string
+  /** 森空岛账号标识；官方接口允许省略，为空时不拼接该参数 */
+  userId?: string
 }
 
 export interface EndfieldCharacter {
@@ -55,144 +55,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function identifier(value: unknown): string {
-  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
-}
-
-function readCredential(value: unknown): SklandCredential {
-  if (!isRecord(value) || !identifier(value.cred) || !identifier(value.token)) {
-    throw new SklandRequestError('未获取到有效的森空岛凭证')
-  }
-  return { cred: identifier(value.cred), token: identifier(value.token) }
-}
-
-export function isEndfieldCredentialExpired(error: unknown): boolean {
-  return error instanceof SklandRequestError && (error.code === 10000 || error.code === 10002)
-}
-
-/** 支持直接输入 cred，或已有的 cred,token 凭证对。 */
-export async function getEndfieldCredential(input: string): Promise<SklandCredential> {
-  const value = input.trim()
-  if (value.includes(',')) return parseSklandCredential(value)
-  if (!value) throw new SklandRequestError('请输入森空岛 cred 或 cred,token')
-  const response = await axios.get('https://zonai.skland.com/api/v1/auth/refresh', {
-    headers: { cred: value },
-    timeout: 15000,
-  })
-  const payload: unknown = response.data
-  if (!isRecord(payload) || payload.code !== 0 || !isRecord(payload.data)) {
-    throw new SklandRequestError(
-      isRecord(payload) && typeof payload.message === 'string'
-        ? payload.message
-        : 'cred 无效或已过期',
-      response.status,
-      isRecord(payload) && typeof payload.code === 'number' ? payload.code : undefined,
-    )
-  }
-  return readCredential({ cred: value, token: payload.data.token })
-}
-
-export async function getEndfieldCredentialByOfficialToken(
-  token: string,
-): Promise<SklandCredential> {
-  const response = await ucRequest<unknown>({
-    method: 'POST',
-    url: '/skland/hg/cred-token',
-    data: { token },
-    auth: false,
-  })
-  return readCredential(response.data)
-}
-
-export async function createEndfieldQrCode(): Promise<SklandQrCode> {
-  const response = await ucRequest<SklandQrCode>({
-    method: 'POST',
-    url: '/skland/qr/create',
-    auth: false,
-  })
-  if (!response.data?.scanId || !response.data.qrContent) {
-    throw new SklandRequestError('二维码信息不完整，请重试')
-  }
-  return response.data
-}
-
-export async function checkEndfieldQrStatus(scanId: string): Promise<SklandQrStatus> {
-  const response = await ucRequest<SklandQrStatus>({
-    method: 'POST',
-    url: `/skland/qr/check?scanId=${encodeURIComponent(scanId)}`,
-    auth: false,
-  })
-  if (typeof response.data?.status !== 'number') {
-    throw new SklandRequestError('二维码状态返回格式不正确')
-  }
-  return response.data
-}
-
-export async function getEndfieldRoles(credential: SklandCredential): Promise<EndfieldRole[]> {
-  const binding = await requestSkland<{ list?: unknown[] }>(
-    '/api/v1/game/player/binding',
-    '',
-    credential,
-  )
-  const group = Array.isArray(binding?.list)
-    ? binding.list.find((item) => isRecord(item) && item.appCode === 'endfield')
-    : undefined
-  const entries = isRecord(group) && Array.isArray(group.bindingList) ? group.bindingList : []
-  if (!entries.length) return []
-
-  let userId = ''
-  try {
-    const data = await requestSkland<{ teenager?: { userId?: string | number } }>(
-      '/api/v1/user/teenager',
-      '',
-      credential,
-    )
-    userId = identifier(data?.teenager?.userId)
-  } catch (error) {
-    if (isEndfieldCredentialExpired(error)) throw error
-    // teenager 不可用时，按每个绑定账号自己的 uid 回退。
-  }
-
-  const roles = entries.flatMap((entry): EndfieldRole[] => {
-    if (!isRecord(entry) || entry.isDelete === true || !Array.isArray(entry.roles)) return []
-    return entry.roles.flatMap((role) => {
-      if (!isRecord(role)) return []
-      const roleId = identifier(role.roleId)
-      const serverId = identifier(role.serverId)
-      if (!roleId || !serverId) return []
-      return [
-        {
-          roleId,
-          serverId,
-          userId: userId || identifier(entry.uid),
-          nickname: typeof role.nickname === 'string' ? role.nickname : roleId,
-          serverName: typeof role.serverName === 'string' ? role.serverName : serverId,
-          level: typeof role.level === 'number' ? role.level : undefined,
-        },
-      ]
-    })
-  })
-  return roles.filter(
-    (role, index) =>
-      roles.findIndex(
-        (other) => other.roleId === role.roleId && other.serverId === role.serverId,
-      ) === index,
-  )
-}
-
+/**
+ * 获取终末地角色卡片详情
+ *
+ * `userId`（森空岛账号标识）是官方接口的可选参数，只有拿得到时才拼接，
+ * 因此不再为它去请求语义无关的 user/teenager 接口。
+ * @param credential 森空岛凭证
+ * @param role 目标角色
+ */
 export async function getEndfieldCardDetail(
   credential: SklandCredential,
   role: EndfieldRole,
 ): Promise<EndfieldCardDetail> {
-  if (!role.userId) throw new SklandRequestError('未获取到账号标识，请重新读取森空岛账号')
-  const query = new URLSearchParams({
-    roleId: role.roleId,
-    serverId: role.serverId,
-    userId: role.userId,
-  }).toString()
+  const query = new URLSearchParams({ roleId: role.roleId, serverId: role.serverId })
+  if (role.userId) query.set('userId', role.userId)
+
   const data = await requestSkland<{ detail?: EndfieldCardDetail }>(
     '/web/v1/game/endfield/card/detail',
-    query,
+    query.toString(),
     credential,
   )
   if (!isRecord(data?.detail) || !Object.keys(data.detail).length) {
