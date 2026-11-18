@@ -222,14 +222,14 @@ function formatDateTime(value: string): string {
   )}:${pad(date.getMinutes())}`
 }
 
-/** 账号卡片使用的只读显示标识，不参与接口请求。 */
-function accountIdentifier(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
-  const prefix = account.source === 'manual' ? 'AK-' : 'SKD_AK-'
-  return `${prefix}${account.akUid}`
+/** 卡片副标题：数据来源，替代过去 SKD_AK-xxx 这种拼接标识（只用于展示）。 */
+function accountSourceLabel(account: Pick<AkAccountVO, 'source'>): string {
+  return account.source === 'manual' ? '手动数据维护' : '森空岛数据同步'
 }
 
-function defaultAccountName(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
-  return account.source === 'manual' ? '手动上传' : `AK-${account.akUid}`
+/** 账号默认名称（未填备注时展示）：直接用 UID，不再拼 AK- 前缀 */
+function defaultAccountName(account: Pick<AkAccountVO, 'akUid'>): string {
+  return account.akUid
 }
 
 function startAccountNoteEdit(): void {
@@ -553,7 +553,7 @@ void loadOperatorStaticData().then((data) => {
           @click="viewAccount(account.akUid, account.source || 'skland')"
         >
           <span class="operator-account-card-title">{{ defaultAccountName(account) }}</span>
-          <span class="operator-account-card-subtitle">{{ accountIdentifier(account) }}</span>
+          <span class="operator-account-card-subtitle">{{ accountSourceLabel(account) }}</span>
           <span class="operator-account-card-meta">
             <small>上次更新时间</small>
             <strong>{{ formatDateTime(account.updateTime) }}</strong>

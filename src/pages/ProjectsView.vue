@@ -306,8 +306,8 @@ function buildAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): Comm
         project: arknightsProject,
         icon: arknightsIcon,
         // 卡片主标题只放 UID，来源信息交给副标题，避免拼出 SKD_AK-xxx 这种难认的标识
-        title: source === 'manual' ? '手动上传' : `AK-${account.akUid}`,
-        subtitle: `${source === 'manual' ? 'AK-' : 'SKD_AK-'}${account.akUid}`,
+        title: account.akUid,
+        subtitle: source === 'manual' ? '手动数据维护' : '森空岛数据同步',
         gameUid: source === 'manual' ? ucUid : account.akUid,
         source,
         tokenConnections: [],
@@ -317,7 +317,7 @@ function buildAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): Comm
       id: `endfield:${account.serverId}:${account.roleId}`,
       project: endfieldProject,
       icon: endfieldIcon,
-      title: `UID ${account.roleId}`,
+      title: account.roleId,
       subtitle: `服务器 ${account.serverId || '默认'}`,
       gameUid: account.roleId,
       source: 'skland' as const,
@@ -562,7 +562,10 @@ onMounted(() => {
                   />
                 </div>
                 <div class="project-identity-copy" :style="projectNameStyle(account.title)">
-                  <p>{{ account.project.name }}</p>
+                  <p>
+                    {{ account.project.name
+                    }}<template v-if="!account.legacy"> · UID</template>
+                  </p>
                   <h2>{{ account.title }}</h2>
                   <span class="project-identity-subtitle">{{ account.subtitle }}</span>
                 </div>
