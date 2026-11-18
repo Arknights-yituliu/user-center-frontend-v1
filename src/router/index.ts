@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import UserView from '../pages/UserView.vue'
 import { getUcToken } from '../api/user-center/request'
-import LandingView from '../pages/LandingView.vue'
 import ProjectsView from '../pages/ProjectsView.vue'
 import ColorView from '../pages/ColorView.vue'
 import UIPreviewView from '../pages/UIPreviewView.vue'
@@ -25,15 +24,11 @@ import ClassicUserView from '../classic-pages/UserView.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    // 根路径是公开介绍页
+    // 根路径直接进入新版用户中心；旧介绍页文件保留，暂不作为默认入口。
     {
       path: '/',
       name: 'LANDING',
-      component: LandingView,
-      meta: {
-        title: '酸橙云 · 让这片大地数据互通',
-        hideSidebar: true,
-      },
+      redirect: { name: 'USER_PROFILE' },
     },
     {
       path: '/projects',
@@ -105,7 +100,7 @@ const router = createRouter({
     { path: '/user/common-data', redirect: { name: 'GAME_DATA' } },
     {
       // 游戏数据管理：独立于通用数据维护的 UC 账号数据链路
-      path: '/arknights-game-data',
+      path: '/gamedata/arknights',
       name: 'GAME_DATA',
       component: GameDataView,
       meta: {
@@ -114,20 +109,19 @@ const router = createRouter({
     },
     { path: '/user/arknights-game-data', redirect: { name: 'GAME_DATA' } },
     {
-      path: '/endfield-game-data',
+      path: '/gamedata/endfield',
       name: 'ENDFIELD_GAME_DATA',
       component: () => import('../pages/EndfieldGameDataView.vue'),
       meta: { title: '游戏数据·终末地' },
     },
     { path: '/user/endfield-game-data', redirect: { name: 'ENDFIELD_GAME_DATA' } },
     {
-      // 森空岛数据同步：一次凭证 + 一次绑定列表，同时导入两个游戏的账号
-      path: '/skland-import',
-      name: 'SKLAND_IMPORT',
-      component: () => import('../pages/SklandImportView.vue'),
+      // 数据导入：森空岛导入、JSON 导入与第三方授权统一由一个页面承载
+      path: '/gamedata-import',
+      name: 'GAME_DATA_IMPORT',
+      component: () => import('../pages/GameDataImportView.vue'),
       meta: {
-        title: '森空岛数据同步',
-        // 写入必须走正式会话，守卫用 !getUcToken() 判定
+        title: '数据导入',
         requiresAuth: true,
       },
     },

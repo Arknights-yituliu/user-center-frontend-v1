@@ -25,6 +25,7 @@ interface Props {
   visualBottom?: string
   visualIndex?: string
   visualIcon?: string
+  visualImage?: string
   visualIndexText?: boolean
   theme?: HeaderTheme
 }
@@ -89,11 +90,21 @@ const headerStyle = computed(() => {
       <span class="secondary-page-header-visual-marker secondary-page-header-visual-marker-secondary"></span>
       <span class="secondary-page-header-visual-marker secondary-page-header-visual-marker-highlight"></span>
       <span
-        v-if="visualIndex"
+        v-if="visualIndex && visualImage"
+        class="secondary-page-header-visual-index secondary-page-header-visual-index-image"
+      >
+        <img class="secondary-page-header-visual-index-background" :src="visualImage" alt="" />
+        <span class="secondary-page-header-visual-index-number">{{ visualIndex }}</span>
+      </span>
+      <span
+        v-else-if="visualIndex"
         class="secondary-page-header-visual-index"
         :class="{ 'secondary-page-header-visual-index-label': visualIndexText }"
       >
         {{ visualIndex }}
+      </span>
+      <span v-else-if="visualImage" class="secondary-page-header-visual-icon">
+        <img class="secondary-page-header-visual-image" :src="visualImage" alt="" />
       </span>
       <span v-else-if="visualIcon" class="secondary-page-header-visual-icon">
         <v-icon :icon="visualIcon" size="42"></v-icon>
@@ -289,6 +300,30 @@ const headerStyle = computed(() => {
   text-align: center;
 }
 
+.secondary-page-header-visual-index-image {
+  overflow: hidden;
+  padding: 0;
+}
+
+.secondary-page-header-visual-index-background {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.secondary-page-header-visual-index-number {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 4px 6px;
+  background: var(--module-primary);
+  color: var(--module-surface);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .secondary-page-header-visual-icon {
   position: absolute;
   top: 50%;
@@ -301,6 +336,13 @@ const headerStyle = computed(() => {
   border: 1px solid var(--module-line);
   background: var(--module-warm);
   color: var(--module-line);
+}
+
+.secondary-page-header-visual-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 @media (max-width: 820px) {

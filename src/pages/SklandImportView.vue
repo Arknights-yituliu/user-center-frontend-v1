@@ -15,11 +15,15 @@ import type { GameScope } from '../types/skland-import'
 import '../assets/css/skland-import.scss'
 
 /**
- * 森空岛数据同步页（/skland-import）
+ * 森空岛数据同步内容（/gamedata-import?tab=skland）
  *
  * 一次凭证 → 一次绑定列表 → 勾选游戏与账号 → 确认 → 分别拉取上传。
  * 只做导入：不含手动编辑与草稿上传，失败不重试，错误只汇总到页面底部。
  */
+
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+})
 
 const GAMES: GameScope[] = ['arknights', 'endfield']
 
@@ -83,11 +87,9 @@ const {
   error: credentialError,
   qrImage,
   qrStatus,
-  qrLoading,
+  setMethod,
   submitPair,
   submitOfficial,
-  startQr,
-  stopQr,
   reset: resetCredential,
 } = credentialState
 
@@ -178,8 +180,9 @@ const steps = [
 </script>
 
 <template>
-  <div class="si-page">
+  <div class="si-page" :class="{ 'si-page-embedded': props.embedded }">
     <SecondaryPageHeader
+      v-if="!props.embedded"
       title-id="skland-import-title"
       kicker="SKLAND / DATA SYNC"
       title-a="森空岛数据同步"
@@ -196,7 +199,11 @@ const steps = [
         导入会把数据写入你的酸橙云账号，因此必须使用正式登录会话。仅持有 OAuth 授权流程的临时会话时，也会按未登录处理。
       </p>
       <div class="si-actions">
-        <v-btn variant="flat" color="primary" :to="{ name: 'LOGIN', query: { returnTo: '/skland-import' } }">
+        <v-btn
+          variant="flat"
+          color="primary"
+          :to="{ name: 'LOGIN', query: { returnTo: '/gamedata-import?tab=skland' } }"
+        >
           前往登录
         </v-btn>
       </div>
@@ -219,29 +226,17 @@ const steps = [
       </ol>
 
       <section v-if="step === 1" aria-labelledby="si-step-credential">
-        <div class="si-heading">
-          <div>
-            <p class="si-label">STEP 01 / CREDENTIAL</p>
-            <h2 id="si-step-credential" class="si-title">先获取一次森空岛凭证。</h2>
-            <p class="si-desc">
-              凭证对两个游戏通用，只需获取一次。它只保存在当前页面内存中，刷新即失效。
-            </p>
-          </div>
-        </div>
-
         <CredentialPanel
-          v-model:method="method"
+          :method="method"
           v-model:pair-input="credentialInput"
           v-model:official-input="officialInput"
           :loading="credentialLoading"
           :error-message="credentialErrorMessage"
           :qr-image="qrImage"
           :qr-status="qrStatus"
-          :qr-loading="qrLoading"
+          @select-method="setMethod"
           @submit-pair="submitPair"
           @submit-official="submitOfficial"
-          @start-qr="startQr"
-          @stop-qr="stopQr"
         />
       </section>
 
@@ -250,9 +245,6 @@ const steps = [
           <div>
             <p class="si-label">STEP 02 / TARGETS</p>
             <h2 id="si-step-binding" class="si-title">勾选要导入的游戏，并选定账号。</h2>
-            <p class="si-desc">
-              绑定列表只请求一次，两个游戏共用同一份响应；未勾选的游戏不会拉取数据，也不会写入。
-            </p>
           </div>
           <v-btn variant="text" @click="restart">重新获取凭证</v-btn>
         </div>
@@ -286,9 +278,6 @@ const steps = [
           <div>
             <p class="si-label">STEP 03 / CONFIRM</p>
             <h2 id="si-step-confirm" class="si-title">确认要写入的账号。</h2>
-            <p class="si-desc">
-              首次导入会自动建立绑定，重复导入同一账号只会更新变化的字段。确认后立即开始上传。
-            </p>
           </div>
         </div>
 
@@ -307,9 +296,6 @@ const steps = [
           <div>
             <p class="si-label">STEP 04 / RESULT</p>
             <h2 id="si-step-result" class="si-title">导入结果。</h2>
-            <p class="si-desc">
-              各游戏独立执行，一侧失败不影响另一侧；失败原因汇总在页面底部，本次不会自动重试。
-            </p>
           </div>
           <v-btn v-if="!running" variant="text" @click="restart">重新发起导入</v-btn>
         </div>
@@ -320,10 +306,9 @@ const steps = [
       <ImportErrorFooter :errors="errors" :session-error="sessionError" />
 
       <footer class="si-hint">
-        <RouterLink to="/arknights-game-data">游戏数据·明日方舟</RouterLink>
+        <RouterLink to="/gamedata/arknights">游戏数据·明日方舟</RouterLink>
         ·
-        <RouterLink to="/endfield-game-data">游戏数据·终末地</RouterLink>
-        —— 导入后的数据可在原页面查看、手动编辑或上传草稿。
+        <RouterLink to="/gamedata/endfield">游戏数据·终末地</RouterLink>
       </footer>
     </template>
   </div>

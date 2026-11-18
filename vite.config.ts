@@ -9,7 +9,8 @@ export default defineConfig({
     vueDevTools(),
   ],
   server: {
-    // 指定开发服务器启动端口为 3000
-    port: 4000,
+    host: '0.0.0.0',
+    port: 2180,
+    allowedHosts: ['zrw.asia', 'qtjpt.zrw.asia'],
   },
 })

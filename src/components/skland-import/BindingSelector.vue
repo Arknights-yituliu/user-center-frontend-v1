@@ -79,10 +79,7 @@ function onToggle(game: GameScope, event: Event): void {
           <span>{{ column.targets.length }} 个已绑定 · {{ column.unit }}</span>
         </div>
 
-        <p v-if="!scope[column.game]" class="si-empty">
-          未勾选「导入{{ column.title }}数据」，本栏不参与本次拉取与上传。
-        </p>
-        <p v-else-if="loading" class="si-empty">正在读取森空岛绑定账号…</p>
+        <p v-if="loading" class="si-empty">正在读取森空岛绑定账号…</p>
         <p v-else-if="!column.targets.length" class="si-empty">
           未找到该游戏的绑定角色。请先在森空岛 APP 内绑定，再重新读取。
         </p>

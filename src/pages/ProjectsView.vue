@@ -9,7 +9,13 @@ import {
   signCustomToken,
   type CustomTokenRecordVO,
 } from '../api/user-center/custom-token-api'
+import { listAkAccounts, type AkAccountVO } from '../api/user-center/ak-account-api'
+import { listEfAccounts, type EfAccount } from '../api/user-center/ef-account-api'
+import arknightsIcon from '../assets/ak.webp'
+import endfieldIcon from '../assets/ef.webp'
 import { createMessage } from '../utils/message'
+import { copyText } from '../utils/copy-text'
+import { maskTokenMiddle } from '../utils/token-display'
 
 type CommonTokenScope = 'read' | 'write'
 
@@ -34,6 +40,14 @@ type CommonDataProject = {
   /** 各档签发的 scope 标识：读 / 写 */
   scopeCodes: Record<CommonTokenScope, string>
   tokenConnections: CommonTokenConnection[]
+}
+
+type AuthorizationSubAccount = {
+  id: string
+  project: CommonDataProject
+  icon: string
+  title: string
+  subtitle: string
 }
 
 /** 通用数据的授权粒度只有读、写两档 */
@@ -88,6 +102,8 @@ const commonDataProjects = reactive<CommonDataProject[]>([
 const visibleToken = ref<string | null>(null)
 const isLoggedIn = ref(Boolean(getUcToken()))
 const tokensLoading = ref(false)
+const subAccounts = ref<AuthorizationSubAccount[]>([])
+const subAccountsLoading = ref(false)
 const tokenExpiry = ref(DEFAULT_TOKEN_EXPIRY)
 /** 仅显示未过期令牌，默认开启；关闭后连过期记录一起展示 */
 const onlyUnexpired = ref(true)
@@ -194,6 +210,48 @@ function applyTokenRecords(records: CustomTokenRecordVO[]): void {
   }
 }
 
+function buildSubAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): AuthorizationSubAccount[] {
+  const arknightsProject = commonDataProjects.find((project) => project.id === 'arknights')
+  const endfieldProject = commonDataProjects.find((project) => project.id === 'endfield')
+  if (!arknightsProject || !endfieldProject) return []
+
+  return [
+    ...akAccounts.map((account) => {
+      const source = account.source || 'skland'
+      return {
+        id: `arknights:${source}:${account.akUid}`,
+        project: arknightsProject,
+        icon: arknightsIcon,
+        title: source === 'manual' ? '手动上传' : `AK-${account.akUid}`,
+        subtitle: `${source === 'manual' ? 'AK-' : 'SKD_AK-'}${account.akUid}`,
+      }
+    }),
+    ...efAccounts.map((account) => ({
+      id: `endfield:${account.serverId}:${account.roleId}`,
+      project: endfieldProject,
+      icon: endfieldIcon,
+      title: `UID ${account.roleId}`,
+      subtitle: `服务器 ${account.serverId || '默认'}`,
+    })),
+  ]
+}
+
+async function loadSubAccounts(): Promise<void> {
+  if (!isLoggedIn.value) return
+  subAccountsLoading.value = true
+  try {
+    const [akResponse, efAccounts] = await Promise.all([listAkAccounts(), listEfAccounts()])
+    subAccounts.value = buildSubAccounts(akResponse.data || [], efAccounts)
+  } catch (error) {
+    const ucError = error as { code?: number } | null
+    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+      isLoggedIn.value = false
+    }
+  } finally {
+    subAccountsLoading.value = false
+  }
+}
+
 /** 拉取我的自定义令牌列表并回填各档位 */
 async function loadTokens(): Promise<void> {
   if (!isLoggedIn.value) return
@@ -273,18 +331,16 @@ async function revokeCommonToken(
 /** 复制令牌明文 */
 async function copyCommonToken(connection: CommonTokenConnection): Promise<void> {
   try {
-    await navigator.clipboard.writeText(connection.token)
+    await copyText(connection.token)
     createMessage({ text: `通用数据${commonTokenMeta[connection.scope].label}已复制`, type: 'success' })
   } catch {
-    createMessage({ text: '复制失败，请手动选中 Token', type: 'warning' })
+    return
   }
 }
 
 /** 脱敏展示令牌：保留头部与尾部便于辨认 */
 function maskedCommonToken(connection: CommonTokenConnection): string {
-  const { token } = connection
-  if (token.length <= 16) return `${token.slice(0, 4)}********`
-  return `${token.slice(0, 9)}********${token.slice(-4)}`
+  return maskTokenMiddle(connection.token)
 }
 
 /** 剩余有效期文案：超过 1 年一律显示「长期」 */
@@ -322,6 +378,7 @@ function projectNameStyle(name: string): Record<string, string> {
 
 onMounted(() => {
   void loadTokens()
+  void loadSubAccounts()
 })
 </script>
 
@@ -362,11 +419,11 @@ onMounted(() => {
           <input v-model="onlyUnexpired" type="checkbox" />
           仅显示未过期
         </label>
-        <RouterLink class="project-visit-button" to="/arknights-game-data">
+        <RouterLink class="project-visit-button" to="/gamedata/arknights">
           通用数据维护
           <v-icon icon="mdi-arrow-top-right" size="16"></v-icon>
         </RouterLink>
-        <RouterLink class="project-visit-button" to="/skland-import">
+        <RouterLink class="project-visit-button" to="/gamedata-import?tab=skland">
           森空岛数据同步
           <v-icon icon="mdi-cloud-sync-outline" size="16"></v-icon>
         </RouterLink>
@@ -374,21 +431,29 @@ onMounted(() => {
           测试读取 Token
         </RouterLink>
       </div>
-      <div class="project-grid" aria-label="通用数据连接列表">
+      <div class="project-grid" aria-label="子账号连接列表">
         <article
-          v-for="commonProject in commonDataProjects"
-          :key="commonProject.id"
+          v-for="subAccount in subAccounts"
+          :key="subAccount.id"
           class="project-card project-card-token project-card-common"
         >
         <div class="project-sidebar">
           <div class="project-info">
             <div class="project-identity">
               <div class="project-icon">
-                <v-icon icon="mdi-key-chain-variant" size="27"></v-icon>
+                <img
+                  class="project-icon-image"
+                  :src="subAccount.icon"
+                  alt=""
+                  width="56"
+                  height="56"
+                  aria-hidden="true"
+                />
               </div>
-              <div class="project-identity-copy" :style="projectNameStyle(commonProject.name)">
-                <p>游戏数据</p>
-                <h2>{{ commonProject.name }}</h2>
+              <div class="project-identity-copy" :style="projectNameStyle(subAccount.title)">
+                <p>{{ subAccount.project.name }}</p>
+                <h2>{{ subAccount.title }}</h2>
+                <span class="project-identity-subtitle">{{ subAccount.subtitle }}</span>
               </div>
             </div>
           </div>
@@ -403,15 +468,19 @@ onMounted(() => {
             <div v-else class="common-token-group">
               <button
                 v-for="scope in commonTokenScopes"
-                v-show="!hasCommonToken(commonProject, scope)"
+                v-show="!hasCommonToken(subAccount.project, scope)"
                 :key="scope"
                 class="primary-button"
                 type="button"
-                :disabled="isSigning(commonProject, scope)"
-                @click="generateCommonToken(commonProject, scope)"
+                :disabled="isSigning(subAccount.project, scope)"
+                @click="generateCommonToken(subAccount.project, scope)"
               >
                 <v-icon icon="mdi-key-plus" size="16"></v-icon>
-                {{ isSigning(commonProject, scope) ? '签发中…' : commonTokenMeta[scope].buttonLabel }}
+                {{
+                  isSigning(subAccount.project, scope)
+                    ? '签发中…'
+                    : commonTokenMeta[scope].buttonLabel
+                }}
               </button>
             </div>
           </div>
@@ -424,13 +493,15 @@ onMounted(() => {
           <div v-else-if="!isLoggedIn" class="content-empty">
             <span>登录后可查看与管理 Token</span>
           </div>
-          <div v-else-if="!visibleConnections(commonProject).length" class="content-empty">
-            <span v-if="commonProject.tokenConnections.length">暂无未过期的 Token（已隐藏过期记录）</span>
+          <div v-else-if="!visibleConnections(subAccount.project).length" class="content-empty">
+            <span v-if="subAccount.project.tokenConnections.length">
+              暂无未过期的 Token（已隐藏过期记录）
+            </span>
             <span v-else>暂无已生成的 Token</span>
           </div>
           <div v-else class="content-list">
             <div
-              v-for="connection in visibleConnections(commonProject)"
+              v-for="connection in visibleConnections(subAccount.project)"
               :key="connection.token"
               class="content-item content-item-token"
               :class="{ 'content-item-expired': connection.expiresInSeconds <= 0 }"
@@ -482,8 +553,8 @@ onMounted(() => {
                   type="button"
                   aria-label="重置 Token"
                   title="重置 Token"
-                  :disabled="isSigning(commonProject, connection.scope)"
-                  @click="generateCommonToken(commonProject, connection.scope)"
+                  :disabled="isSigning(subAccount.project, connection.scope)"
+                  @click="generateCommonToken(subAccount.project, connection.scope)"
                 >
                   <v-icon icon="mdi-autorenew" size="16"></v-icon>
                 </button>
@@ -492,8 +563,8 @@ onMounted(() => {
                   type="button"
                   aria-label="撤销 Token"
                   title="撤销 Token"
-                  :disabled="isRevoking(commonProject, connection.scope)"
-                  @click="revokeCommonToken(commonProject, connection)"
+                  :disabled="isRevoking(subAccount.project, connection.scope)"
+                  @click="revokeCommonToken(subAccount.project, connection)"
                 >
                   <v-icon icon="mdi-key-remove" size="16"></v-icon>
                 </button>
@@ -971,9 +1042,17 @@ onMounted(() => {
   height: 56px;
   flex-shrink: 0;
   place-items: center;
+  overflow: hidden;
   border-radius: 14px;
   background: var(--site-accent-soft);
   color: var(--site-accent);
+}
+
+.project-icon-image {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
 }
 
 .project-card-token .project-icon {
@@ -1004,6 +1083,17 @@ onMounted(() => {
   font-weight: 750;
   line-height: 1.2;
   text-overflow: clip;
+  white-space: nowrap;
+}
+
+.project-identity-subtitle {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--site-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

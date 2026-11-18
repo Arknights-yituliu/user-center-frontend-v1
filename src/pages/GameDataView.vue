@@ -11,7 +11,8 @@ import {
   type AkAccountVO,
   type AkOperatorVO,
 } from '../api/user-center/ak-account-api'
-import { getUcUid } from '../api/user-center/request'
+import { listCustomTokens, type CustomTokenRecordVO } from '../api/user-center/custom-token-api'
+import { getUcToken, getUcUid } from '../api/user-center/request'
 import OperatorCellEditor from '../components/OperatorCellEditor.vue'
 import { buildManualUploadPayload, buildRosterRows, type RosterRow } from '../utils/operator-roster'
 import {
@@ -32,9 +33,11 @@ import {
   loadOperatorStaticData,
   type OperatorStaticData,
 } from '../utils/operator-table'
+import { copyText } from '../utils/copy-text'
+import { maskTokenMiddle } from '../utils/token-display'
 
 /**
- * 游戏数据管理页（/arknights-game-data）
+ * 游戏数据管理页（/gamedata/arknights）
  *
  * 独立于「通用数据维护」页的酸橙云链路：只面对 UC 的 /user/ak-accounts 接口，
  * 用森空岛的三种凭证来源拉取账号数据，选定账号后上传到当前登录用户。
@@ -50,6 +53,14 @@ const isLoadingAccounts = ref(false)
 /** 当前查看干员数据的账号 uid，空串表示未选择 */
 const activeAkUid = ref('')
 const activeSource = ref<'skland' | 'manual'>('skland')
+const deleteAccountDialog = ref(false)
+const isEditingAccountNote = ref(false)
+const accountNoteDraft = ref('')
+const customTokens = ref<CustomTokenRecordVO[]>([])
+const gameDataTokenScopes = {
+  read: 'ak-data.read',
+  write: 'ak-data.write',
+} as const
 const operators = ref<AkOperatorVO[]>([])
 const isLoadingOperators = ref(false)
 const sourceLoadError = ref(false)
@@ -68,6 +79,17 @@ const operatorStatic = ref<OperatorStaticData>(EMPTY_OPERATOR_STATIC_DATA)
 const isManualEditing = ref(false)
 const manualDrafts = ref<Record<string, Record<string, RosterRow>>>({})
 const sourceKey = computed(() => `${activeSource.value}:${activeAkUid.value || 'new'}`)
+const activeAccount = computed(() =>
+  accounts.value.find(
+    (account) =>
+      account.akUid === activeAkUid.value && (account.source || 'skland') === activeSource.value,
+  ),
+)
+const activeAccountName = computed(() =>
+  activeAccount.value ? defaultAccountName(activeAccount.value) : '',
+)
+const activeReadToken = computed(() => findActiveGameDataToken(gameDataTokenScopes.read))
+const activeWriteToken = computed(() => findActiveGameDataToken(gameDataTokenScopes.write))
 const currentDrafts = computed(() => manualDrafts.value[sourceKey.value] || {})
 const dirtyCount = computed(() => Object.keys(currentDrafts.value).length)
 const isSavingManual = ref(false)
@@ -198,6 +220,70 @@ function formatDateTime(value: string): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
     date.getHours(),
   )}:${pad(date.getMinutes())}`
+}
+
+/** 账号卡片使用的只读显示标识，不参与接口请求。 */
+function accountIdentifier(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
+  const prefix = account.source === 'manual' ? 'AK-' : 'SKD_AK-'
+  return `${prefix}${account.akUid}`
+}
+
+function defaultAccountName(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
+  return account.source === 'manual' ? '手动上传' : `AK-${account.akUid}`
+}
+
+function startAccountNoteEdit(): void {
+  accountNoteDraft.value = activeAccountName.value
+  isEditingAccountNote.value = true
+}
+
+function cancelAccountNoteEdit(): void {
+  isEditingAccountNote.value = false
+  accountNoteDraft.value = ''
+}
+
+/** 按 /projects 页面的规则匹配当前游戏的有效 Token。 */
+function findActiveGameDataToken(scopeCode: string): CustomTokenRecordVO | undefined {
+  return customTokens.value.find(
+    (record) => record.expiresInSeconds > 0 && coversGameDataScope(record.scope, scopeCode),
+  )
+}
+
+function coversGameDataScope(recordScope: string, scopeCode: string): boolean {
+  const scopes = recordScope
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean)
+  const parentScope = scopeCode.replace(/^ak-data\.(read|write)$/, 'gama-data.$1')
+  return scopes.includes(scopeCode) || scopes.includes(parentScope) || scopes.includes('all')
+}
+
+/** 与 /projects 页面保持一致，只展示 Token 首尾，复制时使用完整值。 */
+function maskedGameDataToken(record?: CustomTokenRecordVO): string {
+  return maskTokenMiddle(record?.token || '')
+}
+
+async function copyGameDataToken(record: CustomTokenRecordVO | undefined): Promise<void> {
+  if (!record) return
+  try {
+    await copyText(record.token)
+  } catch {
+    return
+  }
+}
+
+/** 读取 /projects 页面管理的自定义 Token，不在本页生成或吊销 Token。 */
+async function loadCustomTokens(): Promise<void> {
+  if (!getUcToken()) {
+    customTokens.value = []
+    return
+  }
+  try {
+    const response = await listCustomTokens()
+    customTokens.value = response.data || []
+  } catch {
+    customTokens.value = []
+  }
 }
 
 /**
@@ -381,6 +467,7 @@ function goNextPage(): void {
 }
 
 void loadAccounts()
+void loadCustomTokens()
 
 // 干员静态表（名称 / 星级 / 职业）异步补全，失败时不影响表格本身的展示
 void loadOperatorStaticData().then((data) => {
@@ -415,9 +502,8 @@ void loadOperatorStaticData().then((data) => {
     <section class="operator-editor-section" aria-labelledby="game-data-accounts-title">
       <div class="operator-section-heading">
         <div>
-          <p class="operator-section-label">02 / ACCOUNTS</p>
-          <h2 id="game-data-accounts-title">已绑定的游戏账号。</h2>
-          <p>首次导入会自动建立绑定，点击卡片即可查看该账号的干员数据。</p>
+          <p class="operator-section-label">01 / ACCOUNTS</p>
+          <h2 id="game-data-accounts-title">账号信息</h2>
         </div>
         <div class="operator-editor-summary">
           <span>已绑定</span>
@@ -455,34 +541,126 @@ void loadOperatorStaticData().then((data) => {
           :disabled="isSavingManual || isLoadingOperators"
           @click="viewAccount(account.akUid, account.source || 'skland')"
         >
-          <span class="operator-account-card-uid">{{
-            account.source === 'manual' ? '手动上传' : account.akUid
-          }}</span>
+          <span class="operator-account-card-title">{{ defaultAccountName(account) }}</span>
+          <span class="operator-account-card-subtitle">{{ accountIdentifier(account) }}</span>
           <span class="operator-account-card-meta">
-            <small>最近导入</small>
+            <small>上次更新时间</small>
             <strong>{{ formatDateTime(account.updateTime) }}</strong>
           </span>
           <span class="operator-account-card-meta">
-            <small>绑定时间</small>
+            <small>创建时间</small>
             <strong>{{ formatDateTime(account.createTime) }}</strong>
           </span>
         </button>
+        <button
+          class="operator-account-card operator-account-card-add"
+          type="button"
+          disabled
+          aria-label="添加新的子账号"
+        >
+          <span class="operator-account-card-add-symbol" aria-hidden="true">+</span>
+        </button>
+      </div>
+
+      <div v-if="activeAkUid" class="operator-account-action-bar" aria-label="子账号操作">
+        <div class="operator-account-action-group">
+          <div class="operator-account-token-action">
+            <span>只读 Token</span>
+            <code v-if="activeReadToken">{{ maskedGameDataToken(activeReadToken) }}</code>
+            <button
+              v-if="activeReadToken"
+              class="operator-account-copy-button"
+              type="button"
+              aria-label="复制只读 Token"
+              @click="copyGameDataToken(activeReadToken)"
+            >
+              <v-icon icon="mdi-content-copy" size="15" aria-hidden="true"></v-icon>
+            </button>
+          </div>
+          <div class="operator-account-token-action">
+            <span>只写 Token</span>
+            <code v-if="activeWriteToken">{{ maskedGameDataToken(activeWriteToken) }}</code>
+            <button
+              v-if="activeWriteToken"
+              class="operator-account-copy-button"
+              type="button"
+              aria-label="复制只写 Token"
+              @click="copyGameDataToken(activeWriteToken)"
+            >
+              <v-icon icon="mdi-content-copy" size="15" aria-hidden="true"></v-icon>
+            </button>
+          </div>
+          <RouterLink class="operator-account-action operator-account-action-link" to="/projects">
+            前往授权管理设置 Token
+          </RouterLink>
+        </div>
+        <div class="operator-account-action-group operator-account-action-group-stacked">
+          <div class="operator-account-action-row">
+            <span class="operator-account-action-label">更新数据</span>
+            <div class="operator-account-action-options">
+              <button class="operator-account-action" type="button">通过森空岛更新</button>
+              <button class="operator-account-action" type="button">通过上传 JSON 更新</button>
+            </div>
+          </div>
+          <div class="operator-account-action-row">
+            <span class="operator-account-action-label">子账号备注</span>
+            <div v-if="!isEditingAccountNote" class="operator-account-action-options">
+              <span class="operator-account-note-value">{{ activeAccountName }}</span>
+              <button class="operator-account-action" type="button" @click="startAccountNoteEdit">
+                编辑
+              </button>
+            </div>
+            <div v-else class="operator-account-action-options operator-account-note-editor">
+              <input
+                v-model="accountNoteDraft"
+                class="operator-account-note-input"
+                type="text"
+                maxlength="12"
+                aria-label="子账号备注"
+              />
+              <button class="operator-account-action" type="button">确认</button>
+              <button class="operator-account-action" type="button" @click="cancelAccountNoteEdit">
+                取消
+              </button>
+            </div>
+          </div>
+          <div class="operator-account-action-row">
+            <button
+              class="operator-account-action operator-account-action-danger"
+              type="button"
+              @click="deleteAccountDialog = true"
+            >
+              删除子账号
+            </button>
+          </div>
+        </div>
       </div>
     </section>
+
+    <v-dialog v-model="deleteAccountDialog" max-width="460">
+      <v-card rounded="4">
+        <v-card-title>删除子账号</v-card-title>
+        <v-card-text>
+          <p>确认删除选中的子账号？</p>
+          <strong class="operator-delete-target">{{ activeAccountName }}</strong>
+        </v-card-text>
+        <v-card-actions class="operator-delete-actions">
+          <v-btn variant="text" @click="deleteAccountDialog = false">取消</v-btn>
+          <v-btn variant="text" @click="deleteAccountDialog = false">取消</v-btn>
+          <v-btn color="error" prepend-icon="mdi-delete-outline">确认删除</v-btn>
+          <v-btn variant="text" @click="deleteAccountDialog = false">取消</v-btn>
+          <v-btn variant="text" @click="deleteAccountDialog = false">取消</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <section class="operator-editor-section" aria-labelledby="game-data-roster-title">
       <div class="operator-section-heading">
         <div>
-          <p class="operator-section-label">03 / ROSTER</p>
-          <h2 id="game-data-roster-title">干员数据。</h2>
-          <p v-if="activeAkUid">
-            当前来源：{{
-              activeSource === 'manual' ? '手动上传' : `森空岛 · ${activeAkUid}`
-            }}，列表包含完整图鉴与招募状态。
-          </p>
-          <p v-else>选择一个已绑定的账号即可查看其干员数据。</p>
+          <p class="operator-section-label">02 / OPERATORS</p>
+          <h2 id="game-data-roster-title">干员数据</h2>
         </div>
-        <div class="operator-editor-summary">
+        <div v-if="accounts.length" class="operator-editor-summary">
           <span>共</span>
           <strong>{{ operatorTotal }}</strong>
           <small>名干员 · 已招募 {{ recruitedCount }}</small>
@@ -490,25 +668,17 @@ void loadOperatorStaticData().then((data) => {
       </div>
 
       <div class="operator-editor-shell">
-        <div class="operator-editor-toolbar">
-          <div class="operator-editor-toolbar-copy">
-            <span class="operator-editor-label">当前账号</span>
-            <strong>{{
-              activeSource === 'manual' && activeAkUid
-                ? '手动上传'
-                : activeAkUid || (isManualEditing ? '手动录入' : '未选择账号')
-            }}</strong>
-            <small
-              >筛选出 {{ filteredOperators.length }} 条记录 ·
-              {{
-                dirtyCount
-                  ? `${dirtyCount} 名干员待上传`
-                  : isManualEditing
-                    ? '修改后请点击手动上传'
-                    : '开启手动修改后可编辑'
-              }}</small
-            >
-          </div>
+        <div v-if="isLoadingAccounts" class="operator-editor-empty">
+          <v-progress-circular indeterminate color="primary" size="30"></v-progress-circular>
+          <p>正在读取账号。</p>
+        </div>
+
+        <div v-else-if="!accounts.length" class="operator-editor-empty">
+          <p>导入干员后，你的干员会显示在此处</p>
+        </div>
+
+        <template v-else>
+          <div class="operator-editor-toolbar">
           <div class="operator-editor-toolbar-controls">
             <v-text-field
               v-model="keyword"
@@ -533,7 +703,7 @@ void loadOperatorStaticData().then((data) => {
               </button>
             </div>
           </div>
-        </div>
+          </div>
 
         <div class="operator-roster-filters" role="group" aria-label="干员筛选">
           <div class="operator-filter-heading">
@@ -637,12 +807,6 @@ void loadOperatorStaticData().then((data) => {
         <div v-else-if="sourceLoadError" class="operator-editor-empty">
           <h3>干员数据读取失败。</h3>
           <p>请点击重新读取，成功后即可开启手动修改。</p>
-        </div>
-
-        <div v-else-if="!activeAkUid && !isManualEditing" class="operator-editor-empty">
-          <v-icon icon="mdi-account-arrow-right-outline" size="30"></v-icon>
-          <h3>尚未选择账号。</h3>
-          <p>在上方「已绑定的游戏账号」中点击一张卡片即可查看干员数据。</p>
         </div>
 
         <div v-else-if="!filteredOperators.length" class="operator-editor-empty">
@@ -1080,6 +1244,7 @@ void loadOperatorStaticData().then((data) => {
             </button>
           </div>
         </template>
+        </template>
       </div>
 
       <p class="operator-editor-note">
@@ -1400,6 +1565,7 @@ void loadOperatorStaticData().then((data) => {
 .operator-account-card {
   display: grid;
   gap: 10px;
+  min-height: 132px;
   padding: 18px 20px 20px;
   border: 1px solid var(--site-line);
   border-top: 5px solid var(--site-accent);
@@ -1418,11 +1584,41 @@ void loadOperatorStaticData().then((data) => {
   background: var(--site-accent-soft);
 }
 
-.operator-account-card-uid {
+.operator-account-card-add {
+  place-items: center;
+  border: 1px dashed var(--site-line);
+  background: transparent;
+  color: var(--site-accent);
+  cursor: default;
+}
+
+.operator-account-card-add:hover {
+  border-color: var(--site-accent);
+  background: var(--site-accent-soft);
+}
+
+.operator-account-card-add:disabled {
+  opacity: 1;
+}
+
+.operator-account-card-add-symbol {
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.operator-account-card-title {
   overflow-wrap: anywhere;
   color: var(--site-ink);
   font-size: 20px;
   font-weight: 750;
+}
+
+.operator-account-card-subtitle {
+  overflow-wrap: anywhere;
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .operator-account-card-meta {
@@ -1440,6 +1636,194 @@ void loadOperatorStaticData().then((data) => {
   font-weight: 750;
 }
 
+.operator-account-action-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  margin-top: 14px;
+  border: 1px solid var(--site-line);
+  border-radius: 8px;
+  background: rgb(234 247 247 / 0.5);
+  overflow: hidden;
+}
+
+.operator-account-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  min-width: 0;
+  padding: 14px 18px;
+}
+
+.operator-account-action-group + .operator-account-action-group {
+  border-left: 1px solid var(--site-line);
+}
+
+.operator-account-action-group-stacked {
+  display: grid;
+  align-items: stretch;
+  gap: 0;
+}
+
+.operator-account-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  min-height: 42px;
+}
+
+.operator-account-action-label {
+  flex: 0 0 auto;
+  color: var(--site-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.operator-account-action-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.operator-account-note-value {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--site-ink);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operator-account-note-editor {
+  flex: 1 1 auto;
+}
+
+.operator-account-note-input {
+  min-width: 0;
+  width: min(180px, 100%);
+  padding: 5px 8px;
+  border: 1px solid var(--site-line);
+  border-radius: 3px;
+  color: var(--site-ink);
+  background: var(--site-surface);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.operator-account-note-input:focus {
+  border-color: var(--site-accent);
+}
+
+.operator-account-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--site-ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+  text-align: left;
+  text-decoration: none;
+}
+
+.operator-account-action:not(:disabled):hover {
+  color: var(--site-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.operator-account-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.operator-account-action:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 4px;
+}
+
+.operator-account-token-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  color: var(--site-ink);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.operator-account-token-action code {
+  color: var(--site-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.operator-account-copy-button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.operator-account-copy-button:hover {
+  color: var(--site-accent);
+}
+
+.operator-account-copy-button:focus-visible {
+  outline: 2px solid var(--site-accent);
+  outline-offset: 2px;
+}
+
+.operator-account-action-link {
+  color: var(--site-accent);
+}
+
+.operator-account-action-danger {
+  color: #b8324c;
+}
+
+.operator-account-action-danger:not(:disabled):hover {
+  color: #b8324c;
+}
+
+.operator-delete-target {
+  display: block;
+  color: var(--site-ink);
+  font-size: 16px;
+}
+
+.operator-delete-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.operator-delete-actions :deep(.v-btn) {
+  min-width: 0;
+  padding-inline: 4px;
+}
+
 /* ---- 编辑区外壳与工具条 ---- */
 .operator-editor-shell {
   margin-top: 22px;
@@ -1455,32 +1839,6 @@ void loadOperatorStaticData().then((data) => {
   padding: 18px 22px;
   border-bottom: 1px solid var(--site-line);
   background: rgb(234 247 247 / 0.5);
-}
-
-.operator-editor-toolbar-copy {
-  display: grid;
-  gap: 4px;
-  min-width: 180px;
-}
-
-.operator-editor-toolbar-copy small {
-  color: var(--site-muted);
-  font-size: 11px;
-}
-
-.operator-editor-label {
-  color: var(--site-muted);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.operator-editor-toolbar strong {
-  overflow-wrap: anywhere;
-  color: var(--site-ink);
-  font-size: 14px;
-  font-weight: 750;
 }
 
 .operator-editor-actions {
@@ -1884,6 +2242,15 @@ void loadOperatorStaticData().then((data) => {
   .operator-editor-actions {
     justify-content: flex-start;
   }
+
+  .operator-account-action-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-account-action-group + .operator-account-action-group {
+    border-top: 1px solid var(--site-line);
+    border-left: 0;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1914,6 +2281,18 @@ void loadOperatorStaticData().then((data) => {
 
   .operator-editor-toolbar-controls {
     grid-template-columns: 1fr;
+  }
+
+  .operator-account-action-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0;
+  }
+
+  .operator-account-action-options {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .operator-search-field {

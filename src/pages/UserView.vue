@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
+import { defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { getUcToken, getUcUid } from '../api/user-center/request'
 import { getUserProfile, updateProfile, type UcProfileVO } from '../api/user-center/user-api'
+import arknightsIcon from '../assets/ak.webp'
+import endfieldIcon from '../assets/ef.webp'
 import { createMessage } from '../utils/message'
 
 const LoginView = defineAsyncComponent(() => import('./account/login.vue'))
@@ -11,14 +13,6 @@ const pageLoading = ref(true)
 const loggedIn = ref(!!getUcToken())
 // 待接入用户同步数据汇总接口；不使用已入驻工具数量冒充。
 const syncedToolCount = ref<number | null>(null)
-type DataStatusTone = 'fresh' | 'stale' | 'empty'
-
-interface DataStatus {
-  label: string
-  tone: DataStatusTone
-}
-
-const operatorDataUpdatedAt = ref<Date | null>(null)
 const hasReadUserGuide = ref(false)
 const loginDialog = ref(false)
 const nicknameEditing = ref(false)
@@ -35,35 +29,6 @@ const profile = ref<UcProfileVO>({
   registerTime: '',
   lastLoginTime: '',
 })
-
-function formatDataStatus(updatedAt: Date | null): DataStatus {
-  if (!updatedAt) {
-    return { label: '未导入', tone: 'empty' }
-  }
-
-  const elapsedMs = Math.max(0, Date.now() - updatedAt.getTime())
-  const dayMs = 24 * 60 * 60 * 1000
-
-  if (elapsedMs < dayMs) {
-    const time = updatedAt.toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    return { label: `${time}前`, tone: 'fresh' }
-  }
-
-  if (elapsedMs < 30 * dayMs) {
-    return { label: `${Math.floor(elapsedMs / dayMs)}天前`, tone: 'fresh' }
-  }
-
-  const year = updatedAt.getFullYear()
-  const month = String(updatedAt.getMonth() + 1).padStart(2, '0')
-  const day = String(updatedAt.getDate()).padStart(2, '0')
-  return { label: `${year}-${month}-${day}`, tone: 'stale' }
-}
-
-const operatorDataStatus = computed(() => formatDataStatus(operatorDataUpdatedAt.value))
 
 async function loadProfile(): Promise<void> {
   if (!getUcToken()) {
@@ -146,7 +111,7 @@ async function handleSubmitNickname(): Promise<void> {
 
     <template v-else>
       <header class="account-header">
-        <div>
+        <div class="account-header-copy">
           <h1>酸橙云<br /><em>让这片大地数据互通</em></h1>
           <p class="account-intro">备份、同步、维护、管理各个工具和设备上的数据</p>
         </div>
@@ -248,22 +213,25 @@ async function handleSubmitNickname(): Promise<void> {
 
       <section class="content-module test-content-module">
         <div class="module-intro">
-          <h2 class="module-title">管理各个项目的数据连接</h2>
-          <div class="module-info">
-            <p class="draft-module-description">
-              已同步数据的工具：{{ syncedToolCount ?? '--' }} 个。
-            </p>
-          </div>
+          <h2 class="module-title">游戏数据</h2>
         </div>
 
-        <div class="module-operation">
-          <RouterLink class="module-action-link" to="/projects">
+        <div class="module-operation common-data-content">
+          <RouterLink class="module-action-link" to="/gamedata/arknights">
             <span class="module-action-icon">
-              <v-icon icon="mdi-view-dashboard-outline" size="22"></v-icon>
+              <img class="module-action-icon-image" :src="arknightsIcon" alt="" aria-hidden="true" />
             </span>
             <span class="module-action-copy">
-              <strong class="module-action-title">进入工具控制面板</strong>
-              <small class="module-action-description">管理各个工具的授权</small>
+              <strong class="module-action-title">明日方舟</strong>
+            </span>
+            <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
+          </RouterLink>
+          <RouterLink class="module-action-link" to="/gamedata/endfield">
+            <span class="module-action-icon">
+              <img class="module-action-icon-image" :src="endfieldIcon" alt="" aria-hidden="true" />
+            </span>
+            <span class="module-action-copy">
+              <strong class="module-action-title">明日方舟：终末地</strong>
             </span>
             <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
           </RouterLink>
@@ -272,36 +240,44 @@ async function handleSubmitNickname(): Promise<void> {
 
       <section class="content-module test-content-module">
         <div class="module-intro">
-          <h2 class="module-title">游戏数据更新与维护</h2>
-          <div class="module-info data-status-list">
-            <p class="data-status" :class="`data-status-${operatorDataStatus.tone}`">
-              干员数据：{{ operatorDataStatus.label }}
-            </p>
-          </div>
+          <h2 class="module-title">数据导入</h2>
         </div>
 
         <div class="module-operation common-data-content">
-          <RouterLink class="module-action-link" to="/arknights-game-data">
-            <span class="module-action-icon">
-              <v-icon icon="mdi-gamepad-variant-outline" size="22"></v-icon>
-            </span>
-            <span class="module-action-copy">
-              <strong class="module-action-title">进入游戏数据管理面板</strong>
-              <small class="module-action-description"
-                >维护干员信息，以供不特定的第三方项目调用</small
-              >
-            </span>
-            <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
-          </RouterLink>
-          <RouterLink class="module-action-link" to="/skland-import">
+          <RouterLink class="module-action-link" to="/gamedata-import?tab=skland">
             <span class="module-action-icon">
               <v-icon icon="mdi-cloud-sync-outline" size="22"></v-icon>
             </span>
             <span class="module-action-copy">
-              <strong class="module-action-title">同步森空岛数据</strong>
-              <small class="module-action-description"
-                >一次凭证同时导入明日方舟与终末地的账号数据</small
-              >
+              <strong class="module-action-title">森空岛导入</strong>
+            </span>
+            <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
+          </RouterLink>
+          <RouterLink class="module-action-link" to="/gamedata-import?tab=json">
+            <span class="module-action-icon">
+              <v-icon icon="mdi-key-plus-outline" size="22"></v-icon>
+            </span>
+            <span class="module-action-copy">
+              <strong class="module-action-title">通过json导入</strong>
+            </span>
+            <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
+          </RouterLink>
+        </div>
+      </section>
+
+      <section class="content-module test-content-module">
+        <div class="module-intro">
+          <h2 class="module-title">第三方项目</h2>
+        </div>
+
+        <div class="module-operation">
+          <RouterLink class="module-action-link" to="/projects">
+            <span class="module-action-icon">
+              <v-icon icon="mdi-view-dashboard-outline" size="22"></v-icon>
+            </span>
+            <span class="module-action-copy">
+              <strong class="module-action-title">第三方项目控制面板</strong>
+              <small class="module-action-description">其他接入酸橙云的项目</small>
             </span>
             <v-icon icon="mdi-arrow-top-right" size="18"></v-icon>
           </RouterLink>
@@ -442,6 +418,10 @@ async function handleSubmitNickname(): Promise<void> {
   min-height: 360px;
   padding: 30px 0 54px;
   border-bottom: 1px solid var(--site-ink);
+}
+
+.account-header-copy {
+  align-self: start;
 }
 
 .eyebrow {
@@ -760,6 +740,14 @@ async function handleSubmitNickname(): Promise<void> {
   color: var(--site-accent);
 }
 
+.module-action-icon-image {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .module-action-copy {
   display: grid;
   gap: 4px;
@@ -845,29 +833,6 @@ async function handleSubmitNickname(): Promise<void> {
   line-height: 1.6;
 }
 
-.data-status-list {
-  display: grid;
-  gap: 4px;
-}
-
-.data-status {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.6;
-}
-
-.data-status-fresh {
-  color: var(--site-green);
-}
-
-.data-status-stale {
-  color: #ff7d00;
-}
-
-.data-status-empty {
-  color: var(--site-muted);
-}
-
 .test-content-module .module-action-link {
   width: min(100%, 300px);
   min-height: 90px;
@@ -893,6 +858,18 @@ async function handleSubmitNickname(): Promise<void> {
   width: min(100%, 620px);
   margin-left: 0;
   gap: 10px;
+}
+
+.common-data-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 620px);
+  gap: 10px;
+}
+
+.common-data-content .module-action-link,
+.draft-help-preview-compact .module-action-link {
+  width: 100%;
 }
 
 .about-module-actions {

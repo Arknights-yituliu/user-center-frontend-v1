@@ -17,7 +17,6 @@ defineProps<{
   <section v-if="sessionError || errors.length" class="si-footer" aria-live="polite">
     <div class="si-footer-head">
       <strong>导入未全部完成</strong>
-      <span>本次不会自动重试，也没有重试按钮；需要再试一次时请从步骤 1 重新发起。</span>
     </div>
 
     <p v-if="sessionError" class="si-error" role="alert">{{ sessionError }}</p>

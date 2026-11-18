@@ -9,6 +9,7 @@ import {
   type EfPlayerData,
 } from '../api/user-center/ef-account-api'
 import { getUcToken } from '../api/user-center/request'
+import endfieldIcon from '../assets/ef.webp'
 
 const accounts = ref<EfAccount[]>([])
 const accountsLoading = ref(false)
@@ -99,7 +100,7 @@ void loadAccounts()
       description="把森空岛上的《明日方舟：终末地》角色数据导入酸橙云，集中查看与更新。"
       visual-top="TALOS-II"
       visual-bottom="你的探索，随时同步"
-      visual-icon="mdi-cube-outline"
+      :visual-image="endfieldIcon"
       visual-index="02"
     />
 

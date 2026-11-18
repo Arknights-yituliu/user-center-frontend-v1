@@ -22,6 +22,9 @@ export interface UseSklandCredentialOptions {
 }
 
 const QR_POLL_INTERVAL = 2000
+const QR_MAX_SESSION_MS = 5 * 60 * 1000
+const QR_MAX_POLL_COUNT = Math.floor(QR_MAX_SESSION_MS / QR_POLL_INTERVAL)
+const QR_MAX_CONSECUTIVE_NETWORK_FAILURES = 3
 
 /**
  * 森空岛凭证获取：cred,token / 官网 Token / 扫码 三种来源
@@ -29,6 +32,7 @@ const QR_POLL_INTERVAL = 2000
  * - 只用内存保存凭证，不落 localStorage
  * - 竞态统一用 disposed + version 令牌，过期响应不回写
  * - 凭证过期（10000/10002）只提示重新获取，不做自动续期，也不调用 /auth/refresh
+ * - 扫码会话最多 5 分钟或 150 次轮询，网络连续 3 次失败后停止
  */
 export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
   const method = ref<CredentialMethod>('credential')
@@ -46,12 +50,27 @@ export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
   let credentialVersion = 0
   let qrVersion = 0
   let qrTimer: ReturnType<typeof setTimeout> | undefined
+  let qrSessionTimer: ReturnType<typeof setTimeout> | undefined
+  let qrSessionActive = false
+  let qrSessionStartedAt = 0
+  let qrPollCount = 0
+  let qrNetworkFailureCount = 0
 
-  function stopQr(): void {
+  function cancelQrWork(): void {
     qrVersion += 1
     if (qrTimer !== undefined) clearTimeout(qrTimer)
     qrTimer = undefined
     qrLoading.value = false
+  }
+
+  function stopQr(): void {
+    cancelQrWork()
+    if (qrSessionTimer !== undefined) clearTimeout(qrSessionTimer)
+    qrSessionTimer = undefined
+    qrSessionActive = false
+    qrSessionStartedAt = 0
+    qrPollCount = 0
+    qrNetworkFailureCount = 0
   }
 
   function fail(cause: unknown, fallback: string): void {
@@ -136,34 +155,78 @@ export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
     }
   }
 
-  /** 扫码：生成二维码并开始轮询 */
-  async function startQr(): Promise<void> {
-    if (loading.value || qrLoading.value) return
+  function stopQrForTimeout(): void {
+    if (!qrSessionActive) return
     stopQr()
-    const version = qrVersion
     qrImage.value = ''
-    qrStatus.value = '正在生成二维码…'
-    error.value = null
+    qrStatus.value = '二维码长时间未确认，请刷新页面或重新进入扫码方式。'
+  }
+
+  function canContinueQrSession(): boolean {
+    if (!qrSessionActive) return false
+    if (
+      qrPollCount >= QR_MAX_POLL_COUNT ||
+      Date.now() - qrSessionStartedAt >= QR_MAX_SESSION_MS
+    ) {
+      stopQrForTimeout()
+      return false
+    }
+    return true
+  }
+
+  function scheduleQrRetry(callback: () => void, message: string): void {
+    qrNetworkFailureCount += 1
+    if (qrNetworkFailureCount >= QR_MAX_CONSECUTIVE_NETWORK_FAILURES) {
+      stopQr()
+      qrStatus.value = '网络请求连续失败，请刷新页面或切换网络环境后重试。'
+      return
+    }
+
+    qrStatus.value = `${message}，正在重试（${qrNetworkFailureCount}/${QR_MAX_CONSECUTIVE_NETWORK_FAILURES}）…`
+    qrTimer = setTimeout(callback, QR_POLL_INTERVAL)
+  }
+
+  async function generateQr(): Promise<void> {
+    if (!qrSessionActive || method.value !== 'qr' || !canContinueQrSession()) return
+
+    const version = qrVersion
     qrLoading.value = true
 
     try {
       const session = await createSklandQrCode()
       const image = await QRCode.toDataURL(session.qrContent, { width: 240, margin: 1 })
-      if (disposed || version !== qrVersion) return
+      if (disposed || version !== qrVersion || !qrSessionActive) return
       qrImage.value = image
       qrStatus.value = '请使用森空岛 APP 扫码，并在手机上确认授权。'
-      qrLoading.value = false
+      qrNetworkFailureCount = 0
       qrTimer = setTimeout(() => void pollQr(session.scanId, version), QR_POLL_INTERVAL)
     } catch (cause) {
-      if (disposed || version !== qrVersion) return
-      qrStatus.value = ''
-      fail(cause, '二维码生成失败，请重试')
+      if (disposed || version !== qrVersion || !qrSessionActive) return
+      scheduleQrRetry(() => void generateQr(), '二维码请求失败')
     } finally {
       if (!disposed && version === qrVersion) qrLoading.value = false
     }
   }
 
+  /** 扫码：开始一个新的二维码会话并自动轮询 */
+  function startQr(): void {
+    if (loading.value || qrLoading.value) return
+    stopQr()
+    qrSessionActive = true
+    qrSessionStartedAt = Date.now()
+    qrSessionTimer = setTimeout(stopQrForTimeout, QR_MAX_SESSION_MS)
+    qrImage.value = ''
+    qrStatus.value = '正在生成二维码…'
+    error.value = null
+    qrPollCount = 0
+    qrNetworkFailureCount = 0
+    void generateQr()
+  }
+
   async function pollQr(scanId: string, version: number): Promise<void> {
+    if (!canContinueQrSession()) return
+    qrPollCount += 1
+
     try {
       const result = await checkSklandQrStatus(scanId)
       if (disposed || version !== qrVersion) return
@@ -186,8 +249,10 @@ export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
       }
 
       if (result.status === 102) {
-        stopQr()
-        qrStatus.value = '二维码已过期，请重新生成。'
+        cancelQrWork()
+        qrImage.value = ''
+        qrStatus.value = '二维码已过期，正在重新生成。'
+        qrTimer = setTimeout(() => void generateQr(), QR_POLL_INTERVAL)
         return
       }
 
@@ -198,31 +263,35 @@ export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
           game: 'arknights',
           stage: 'credential',
           code: result.status,
-          message: result.status < 0 ? '扫码会话已失效，请重新生成二维码' : '扫码状态异常，请重新生成二维码',
+          message:
+            result.status < 0
+              ? '扫码会话已失效，请刷新页面或重新进入扫码方式'
+              : '扫码状态异常，请刷新页面或重新进入扫码方式',
         }
         return
       }
 
+      qrNetworkFailureCount = 0
       qrStatus.value =
         result.status === 101 ? '已扫码，请在手机上确认授权。' : '请使用森空岛 APP 扫码。'
       qrTimer = setTimeout(() => void pollQr(scanId, version), QR_POLL_INTERVAL)
     } catch (cause) {
       if (disposed || version !== qrVersion) return
-      stopQr()
-      fail(cause, '扫码状态读取失败，请重试')
+      scheduleQrRetry(() => void pollQr(scanId, version), '扫码状态请求失败')
     }
   }
 
   /** 切换获取方式：停轮询并清空与方式相关的输入与状态 */
   function setMethod(next: CredentialMethod): void {
     if (method.value === next) return
+    if (next !== 'qr') stopQr()
     method.value = next
-    stopQr()
     qrImage.value = ''
     qrStatus.value = ''
     credentialInput.value = ''
     officialInput.value = ''
     error.value = null
+    if (next === 'qr') startQr()
   }
 
   onBeforeUnmount(() => {

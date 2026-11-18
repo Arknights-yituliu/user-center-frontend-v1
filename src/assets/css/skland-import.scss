@@ -19,6 +19,12 @@
   padding: 40px 28px 90px;
 }
 
+.si-page-embedded {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
 /* ---------- 通用区块 ---------- */
 
 .si-section {
@@ -178,15 +184,15 @@
   letter-spacing: 0.12em;
 }
 
+.si-method-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .si-method strong {
   font-size: 15px;
   font-weight: 700;
-}
-
-.si-method span:last-child {
-  color: var(--site-muted);
-  font-size: 12.5px;
-  line-height: 1.6;
 }
 
 .si-form {
