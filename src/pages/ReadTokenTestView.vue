@@ -23,6 +23,17 @@ const tests = reactive<GameTest[]>([
   { game: 'arknights', title: '明日方舟', token: '', loading: false, message: '', results: [] },
   { game: 'endfield', title: '终末地', token: '', loading: false, message: '', results: [] },
 ])
+
+/**
+ * 各游戏的数据读取接口
+ *
+ * /projects 现在签发的是 PAT（`tlc_pat_` 前缀），只能用 `/pat/**` 消费；`/oauth2/**` 不认 PAT。
+ * 消费面目前只提供明日方舟，终末地仍只有 OAuth 版接口（需要 access_token，PAT 打过去会 80001）。
+ */
+const readPaths: Record<GameTest['game'], string> = {
+  arknights: '/pat/ak-accounts/operators',
+  endfield: '/oauth2/ef-accounts/player-data',
+}
 const controllers = new Set<AbortController>()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,7 +64,7 @@ async function testRead(item: GameTest): Promise<void> {
   item.message = '正在读取…'
 
   async function read(path: string): Promise<ReadResult> {
-    // 只使用待测试的 OAuth Token，避免站内会话或 Cookie 影响测试结果。
+    // 只使用待测试的 PAT，避免站内会话或 Cookie 影响测试结果。
     const response = await axios.get<unknown>(`${UC_BASE_URL}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       withCredentials: false,
@@ -67,11 +78,7 @@ async function testRead(item: GameTest): Promise<void> {
   }
 
   try {
-    const result = await read(
-      item.game === 'arknights'
-        ? '/oauth2/ak-accounts/operators'
-        : '/oauth2/ef-accounts/player-data',
-    )
+    const result = await read(readPaths[item.game])
     item.message = isSuccess(result) ? '默认数据读取成功。' : '读取失败，请查看返回 JSON。'
   } catch (error) {
     if (controller.signal.aborted) return
@@ -102,14 +109,10 @@ onBeforeUnmount(() => {
       <h2>{{ item.title }}</h2>
       <p>
         数据读取接口：
-        <code
-          >GET {{ UC_BASE_URL
-          }}{{
-            item.game === 'arknights'
-              ? '/oauth2/ak-accounts/operators'
-              : '/oauth2/ef-accounts/player-data'
-          }}</code
-        >
+        <code>GET {{ UC_BASE_URL }}{{ readPaths[item.game] }}</code>
+      </p>
+      <p v-if="item.game === 'endfield'">
+        终末地暂未提供 PAT 消费面，此接口只认 OAuth access_token；用 PAT 调用会返回 80001。
       </p>
       <form @submit.prevent="testRead(item)">
         <v-textarea
