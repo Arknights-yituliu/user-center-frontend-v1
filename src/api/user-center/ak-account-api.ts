@@ -12,6 +12,10 @@ import { getTclToken, tclRequest, type TclResponse } from './request'
 export interface AkAccountVO {
   /** 游戏账号 UID */
   akUid: string
+  /** 角色昵称；未同步时可能为空 */
+  nickName?: string | null
+  /** 渠道名称；未同步时可能为空 */
+  channelName?: string | null
   /** 数据来源；旧接口未提供时视为森空岛自动导入 */
   source?: 'skland' | 'manual'
   /** 绑定关系创建时间（首次导入该账号数据时） */

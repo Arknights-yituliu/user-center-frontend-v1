@@ -555,6 +555,14 @@ void loadOperatorStaticData().then((data) => {
           <span class="operator-account-card-title">{{ defaultAccountName(account) }}</span>
           <span class="operator-account-card-subtitle">{{ accountSourceLabel(account) }}</span>
           <span class="operator-account-card-meta">
+            <small>账户昵称</small>
+            <strong>{{ account.nickName?.trim() || '未同步' }}</strong>
+          </span>
+          <span class="operator-account-card-meta">
+            <small>渠道名称</small>
+            <strong>{{ account.channelName?.trim() || '未同步' }}</strong>
+          </span>
+          <span class="operator-account-card-meta">
             <small>上次更新时间</small>
             <strong>{{ formatDateTime(account.updateTime) }}</strong>
           </span>
