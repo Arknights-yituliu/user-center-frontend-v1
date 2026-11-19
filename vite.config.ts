@@ -10,7 +10,7 @@ export default defineConfig({
   ],
   server: {
     host: '0.0.0.0',
-    port: 2180,
+    port: 4000,
     allowedHosts: ['zrw.asia', 'qtjpt.zrw.asia'],
   },
 })
