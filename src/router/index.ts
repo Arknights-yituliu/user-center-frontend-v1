@@ -82,7 +82,7 @@ const router = createRouter({
       },
     },
     {
-      // 统一承载开发者中心的客户端管理和三类接入文档
+      // 统一承载开发者中心的客户端管理、接入文档和更新公告
       path: '/developer',
       name: 'DEVELOPER',
       component: DeveloperView,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OAuthUpdateNotice from '../../components/OAuthUpdateNotice.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { TCL_BASE_URL } from '../../api/BASE_URL'
@@ -297,6 +298,8 @@ onBeforeUnmount(() => observer?.disconnect())
         客户端管理
       </v-btn>
     </header>
+
+    <OAuthUpdateNotice />
 
     <div class="protocol-strip" role="note">
       <span class="protocol-icon"><v-icon icon="mdi-web" size="22"></v-icon></span>
