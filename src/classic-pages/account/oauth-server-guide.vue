@@ -457,8 +457,8 @@ onBeforeUnmount(() => observer?.disconnect())
                 用于修改昵称和头像，config.read / config.write 用于应用配置。
               </p>
               <p>
-                明日方舟使用 ak-data.read / ak-data.write，终末地使用 ef-data.read /
-                ef-data.write；gama-data.read / gama-data.write
+                明日方舟使用 arknights-data.read / arknights-data.write，终末地使用 endfield-data.read /
+                endfield-data.write；gama-data.read / gama-data.write
                 覆盖两个游戏的对应操作。读取与写入权限相互独立，all 不可自助配置，OAuth
                 不提供邮箱权限。
               </p>

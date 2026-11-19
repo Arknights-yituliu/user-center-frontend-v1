@@ -58,8 +58,8 @@ const isEditingAccountNote = ref(false)
 const accountNoteDraft = ref('')
 const pats = ref<PatVO[]>([])
 const gameDataTokenScopes = {
-  read: 'ak-data.read',
-  write: 'ak-data.write',
+  read: 'arknights-data.read',
+  write: 'arknights-data.write',
 } as const
 const operators = ref<AkOperatorVO[]>([])
 const isLoadingOperators = ref(false)
@@ -265,7 +265,7 @@ function coversGameDataScope(recordScope: string, scopeCode: string): boolean {
     .split(',')
     .map((scope) => scope.trim())
     .filter(Boolean)
-  const parentScope = scopeCode.replace(/^ak-data\.(read|write)$/, 'gama-data.$1')
+  const parentScope = scopeCode.replace(/^arknights-data\.(read|write)$/, 'gama-data.$1')
   return scopes.includes(scopeCode) || scopes.includes(parentScope) || scopes.includes('all')
 }
 

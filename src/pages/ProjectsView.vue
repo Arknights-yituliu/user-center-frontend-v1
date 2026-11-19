@@ -97,12 +97,12 @@ const commonDataProjects: CommonProject[] = [
   {
     id: 'arknights',
     name: '明日方舟',
-    scopeCodes: { read: 'ak-data.read', write: 'ak-data.write' },
+    scopeCodes: { read: 'arknights-data.read', write: 'arknights-data.write' },
   },
   {
     id: 'endfield',
     name: '明日方舟：终末地',
-    scopeCodes: { read: 'ef-data.read', write: 'ef-data.write' },
+    scopeCodes: { read: 'endfield-data.read', write: 'endfield-data.write' },
   },
 ]
 
@@ -262,10 +262,10 @@ const scopeLabels: Record<string, string> = {
   'config.write': '用户配置（写）',
   'gama-data.read': '全部游戏数据（读）',
   'gama-data.write': '全部游戏数据（写）',
-  'ak-data.read': '明日方舟数据（读）',
-  'ak-data.write': '明日方舟数据（写）',
-  'ef-data.read': '终末地数据（读）',
-  'ef-data.write': '终末地数据（写）',
+  'arknights-data.read': '明日方舟数据（读）',
+  'arknights-data.write': '明日方舟数据（写）',
+  'endfield-data.read': '终末地数据（读）',
+  'endfield-data.write': '终末地数据（写）',
   all: '全部权限',
 }
 
@@ -282,7 +282,7 @@ function scopeLabel(scope: string): string {
  */
 function coversScope(recordScope: string, scopeCode: string): boolean {
   const codes = splitScopes(recordScope)
-  const parent = scopeCode.replace(/^(ak|ef)-data\.(read|write)$/, 'gama-data.$2')
+  const parent = scopeCode.replace(/^(arknights|endfield)-data\.(read|write)$/, 'gama-data.$2')
   return codes.includes(scopeCode) || codes.includes(parent) || codes.includes('all')
 }
 

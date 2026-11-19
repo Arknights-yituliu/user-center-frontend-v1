@@ -6,6 +6,61 @@
       <p>了解接口变化、对现有应用的影响，以及需要采取的接入调整。</p>
     </header>
 
+    <section class="release-note" aria-labelledby="scope-update-title">
+      <div class="release-meta">
+        <time datetime="2026-11-19">说明更新：2026-11-19</time>
+        <v-chip size="small" color="warning" variant="tonal">权限标识调整</v-chip>
+      </div>
+      <h3 id="scope-update-title">游戏数据权限使用完整游戏名称</h3>
+      <p class="release-summary">
+        明日方舟与终末地的细粒度权限已在当前权限目录中改名。自行构造 scope 的应用、 客户端注册 /
+        编辑和个人访问令牌签发请求，请使用以下新标识。
+      </p>
+      <p class="effective-time">生效时间以后端部署公告为准，以上日期为说明更新日期。</p>
+      <div class="updates-table-wrap" role="region" aria-label="游戏权限名称对照" tabindex="0">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">权限</th>
+              <th scope="col">旧标识</th>
+              <th scope="col">当前标识</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>读取明日方舟数据</td>
+              <td><code>ak-data.read</code></td>
+              <td><code>arknights-data.read</code></td>
+            </tr>
+            <tr>
+              <td>写入明日方舟数据</td>
+              <td><code>ak-data.write</code></td>
+              <td><code>arknights-data.write</code></td>
+            </tr>
+            <tr>
+              <td>读取终末地数据</td>
+              <td><code>ef-data.read</code></td>
+              <td><code>endfield-data.read</code></td>
+            </tr>
+            <tr>
+              <td>写入终末地数据</td>
+              <td><code>ef-data.write</code></td>
+              <td><code>endfield-data.write</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        上级权限 <code>gama-data.read</code> / <code>gama-data.write</code> 保持原名，
+        分别覆盖两个游戏的读取 / 写入权限；单个游戏的权限仅覆盖该游戏，读取与写入权限相互独立。
+      </p>
+      <p>
+        接入时请以客户端管理页加载的权限目录为准。旧标识不在当前目录中；
+        旧客户端登记和已签发令牌的处理以后端迁移安排为准。 下方 UC → TCL 更新中的旧请求头 /
+        参数兼容规则不适用于此次 scope 改名。
+      </p>
+    </section>
+
     <section class="release-note" aria-labelledby="tcl-update-title">
       <div class="release-meta">
         <time datetime="2026-11-19">说明更新：2026-11-19</time>
@@ -160,6 +215,10 @@
   border: 1px solid rgba(var(--v-theme-on-surface), 0.15);
   border-radius: 10px;
   background: rgb(var(--v-theme-surface));
+}
+
+.release-note + .release-note {
+  margin-top: 24px;
 }
 
 .release-meta {
