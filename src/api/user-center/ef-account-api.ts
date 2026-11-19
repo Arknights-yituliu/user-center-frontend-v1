@@ -40,6 +40,9 @@ export async function getEfPlayerData(
 export async function saveEfPlayerData(data: {
   roleId: string
   serverId: string
+  serverType: string
+  serverName: string
+  nickName: string
   playerData: EndfieldCardDetail
 }): Promise<Omit<EfPlayerData, 'playerData'>> {
   const response = await tclRequest<Omit<EfPlayerData, 'playerData'>>({

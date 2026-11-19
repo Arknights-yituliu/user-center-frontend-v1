@@ -234,6 +234,76 @@ test('endfield targets drop deleted bindings, normalize IDs and deduplicate role
   assert.equal(target.userId, 'acct')
 })
 
+test('Arknights uploads the selected binding profile inside playerInfo with string channel IDs', async () => {
+  for (const profile of [
+    { nickName: '所选刀客塔', channelName: 'B服', channelMasterId: '2' },
+    { nickName: '官服刀客塔', channelName: '官服', channelMasterId: 1 },
+    { nickName: '', channelName: '', channelMasterId: 0 },
+    { nickName: '', channelName: '', channelMasterId: '' },
+    { nickName: undefined, channelName: undefined, channelMasterId: undefined },
+  ]) {
+    const { binding, importer, responses, calls } = setup()
+    responses.push(
+      sklandOk(bindingPayload({ ak: [akEntry(), akEntry({ uid: '1002', ...profile })] })),
+      tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    )
+
+    await binding.load(credential)
+    binding.select('arknights', binding.akTargets.value[1].key)
+    await importer.run(credential, binding.selectedTargets())
+
+    assert.equal(importer.results.value[0].ok, true)
+    const uploads = tclCalls(calls)
+    assert.equal(uploads.length, 1)
+    assert.equal(uploads[0].url, '/user/ak-accounts/operators/save')
+    assert.deepEqual(JSON.parse(JSON.stringify(uploads[0].config.data)), {
+      playerInfo: {
+        akUid: '1002',
+        channelName: profile.channelName ?? '',
+        channelMasterId: String(profile.channelMasterId ?? ''),
+        nickName: profile.nickName ?? '',
+      },
+      operators: [{ id: 'char_002_amiya' }],
+    })
+  }
+})
+
+test('Endfield uploads the selected role profile and keeps missing or empty metadata as empty strings', async () => {
+  for (const profile of [
+    { nickname: '所选管理员', serverType: 'official', serverName: '官服' },
+    { nickname: '', serverType: '', serverName: '' },
+    { nickname: undefined, serverType: undefined, serverName: undefined },
+  ]) {
+    const { binding, importer, responses, calls } = setup()
+    const detail = { base: { roleId: '43', name: '卡片名称' }, futureField: { keep: true } }
+    responses.push(
+      sklandOk(bindingPayload({ ef: [{ uid: 'acct', roles: [
+        efRole({ serverType: 'other', serverName: '其他服' }),
+        efRole({ roleId: '43', serverId: '2', ...profile }),
+      ] }] })),
+      sklandOk({ teenager: { userId: 'account-user' } }),
+      sklandOk({ detail }),
+      tclOk({ roleId: '43', serverId: '2', updateTime: 'now' }),
+    )
+
+    await binding.load(credential)
+    binding.select('endfield', binding.efTargets.value[1].key)
+    await importer.run(credential, binding.selectedTargets())
+
+    assert.equal(importer.results.value[0].ok, true)
+    const uploads = tclCalls(calls)
+    assert.equal(uploads.length, 1)
+    assert.deepEqual(JSON.parse(JSON.stringify(uploads[0].config.data)), {
+      roleId: '43',
+      serverId: '2',
+      serverType: profile.serverType ?? '',
+      serverName: profile.serverName ?? '',
+      nickName: profile.nickname ?? '',
+      playerData: detail,
+    })
+  }
+})
+
 test('one side failing does not block the other and never retries', async () => {
   const { importer, responses, calls } = setup()
   responses.push(

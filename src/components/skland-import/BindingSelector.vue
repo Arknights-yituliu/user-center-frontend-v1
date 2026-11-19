@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { targetUidText, type AkTarget, type EfTarget, type GameScope } from '../../types/skland-import'
+import {
+  targetUidText,
+  type AkTarget,
+  type EfTarget,
+  type GameScope,
+} from '../../types/skland-import'
 
 /**
  * 步骤 2：勾选要导入的游戏 + 双栏账号选择
@@ -96,18 +101,15 @@ function onToggle(game: GameScope, event: Event): void {
           >
             <span class="si-account-body">
               <span class="si-account-name">
-                {{ target.nickname }}
+                {{ target.nickname || targetUidText(target) }}
                 <span v-if="target.isDefault" class="si-badge">森空岛标记的默认</span>
               </span>
               <span class="si-account-meta">
-                {{ targetUidText(target) }} · {{ target.serverName }}
+                {{ targetUidText(target) }} ·
+                {{ target.serverName || (target.game === 'endfield' ? target.serverId : '默认') }}
               </span>
             </span>
-            <span
-              v-if="column.selected === target.key"
-              class="si-account-check"
-              aria-hidden="true"
-            >
+            <span v-if="column.selected === target.key" class="si-account-check" aria-hidden="true">
               <v-icon icon="mdi-check-bold" size="16" />
             </span>
           </button>

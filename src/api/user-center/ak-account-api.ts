@@ -106,6 +106,12 @@ export interface AkOperatorSaveParams {
   playerInfo: {
     /** 目标游戏账号 UID，不超过 32 位可见 ASCII 字符；当前用户首次上传即建立绑定关系 */
     akUid: string
+    /** 森空岛绑定项渠道名称，缺失时传空串 */
+    channelName: string
+    /** 森空岛绑定项渠道标识，缺失时传空串 */
+    channelMasterId: string
+    /** 森空岛绑定项角色昵称，缺失时传空串 */
+    nickName: string
   }
   /** 干员数组，不能为空 */
   operators: AkOperatorSaveItem[]
@@ -192,7 +198,7 @@ export function saveManualOperators(
  * - 已存在的干员按属性比较后更新，不存在则新增；请求中未出现的干员不会被删除
  * - 同一游戏账号 2 秒内只接受一次保存，命中限流返回 code=30006（等待秒数见 data.retryAfterSeconds）
  * - 保存冲突返回 code=40004，调用方重试整个请求即可
- * @param params 请求体（playerInfo.akUid + operators）
+ * @param params 请求体（playerInfo 中的 UID、渠道、昵称 + operators）
  * @returns 新增 / 更新 / 未变化 的记录数，三项之和等于本次传入的干员数
  */
 export function saveAkOperators(

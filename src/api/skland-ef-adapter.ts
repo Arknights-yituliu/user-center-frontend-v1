@@ -62,9 +62,9 @@ export function parseEfTargets(payload: SklandBindingPayload): EfTarget[] {
           roleId,
           serverId,
           userId: entryUid,
-          nickname: typeof role.nickname === 'string' && role.nickname ? role.nickname : roleId,
-          serverName:
-            typeof role.serverName === 'string' && role.serverName ? role.serverName : serverId,
+          nickname: typeof role.nickname === 'string' ? role.nickname : '',
+          serverType: typeof role.serverType === 'string' ? role.serverType : '',
+          serverName: typeof role.serverName === 'string' ? role.serverName : '',
           isDefault:
             role.isDefault === true || entryDefault || (!!defaultUid && defaultUid === roleId),
         },
@@ -104,12 +104,15 @@ export async function importEfData(
     await saveEfPlayerData({
       roleId: target.roleId,
       serverId: target.serverId,
+      serverType: target.serverType,
+      serverName: target.serverName,
+      nickName: target.nickname,
       playerData: detail,
     })
     return {
       game: 'endfield',
       ok: true,
-      summary: `已导入 ${target.nickname} 的终末地数据`,
+      summary: `已导入 ${target.nickname || target.roleId} 的终末地数据`,
     }
   } catch (error) {
     throw toSklandImportError(error, 'endfield', 'upload', '终末地数据上传失败')

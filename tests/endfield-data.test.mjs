@@ -190,10 +190,16 @@ test('cloud upload preserves complete player data and uses the formal TCL sessio
   )
   await cloud.listEfAccounts()
   assert.equal(await cloud.getEfPlayerData('42+a', '1&b'), null)
-  await cloud.saveEfPlayerData({ roleId: '42', serverId: '1', playerData })
+  await cloud.saveEfPlayerData({
+    roleId: '42', serverId: '1', serverType: 'official', serverName: '官服', nickName: '管理员', playerData,
+  })
   assert.equal(requests[0][0].url, '/user/ef-accounts')
   assert.equal(requests[1][0].url, '/user/ef-accounts/player-data?roleId=42%2Ba&serverId=1%26b')
   assert.equal(requests[2][0].url, '/user/ef-accounts/player-data/save')
+  assert.equal(requests[2][0].data.serverId, '1')
+  assert.equal(requests[2][0].data.serverType, 'official')
+  assert.equal(requests[2][0].data.serverName, '官服')
+  assert.equal(requests[2][0].data.nickName, '管理员')
   assert.equal(requests[2][0].data.playerData, playerData)
   assert.ok(requests.every(([config]) => config.token === 'formal-session'))
 })
