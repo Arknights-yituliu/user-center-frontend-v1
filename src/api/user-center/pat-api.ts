@@ -12,7 +12,8 @@ import { TCL_CLIENT_ID } from './client-id'
  *
  * 与旧的「自定义有效期 access_token」链路（`/user/oauth/custom-tokens/**`，2026-11-19 已删除）相比：
  * - 签发出来的是 PAT 而不是 access_token，只能用 `/pat/**` 消费，`/oauth2/**` 不认；
- * - 令牌要读哪个游戏账号，写在 `payload.game_uid` 里，签发后不可修改（改账号只能撤销重签）；
+ * - 令牌要读哪个游戏账号，写在 `payload.game_uid` 里，终末地另用 `server_id` 指定服务器；
+ *   签发后不可修改（改账号或服务器只能撤销重签）；
  * - 撤销按记录 `id` 定位，不再按明文。
  *
  * 请求体统一用蛇形字段（`expires_in` / `client_id` / `game_uid`），与后端 `@JsonProperty`
@@ -22,19 +23,20 @@ import { TCL_CLIENT_ID } from './client-id'
 /**
  * PAT 绑定的自定义结构（`PatPayload`）
  *
- * 后端实体只定义了 `game_uid` / `game_name`，未定义的键在反序列化时被静默忽略，
- * 也不会出现在签发响应与列表里。因此：
- * - `game_uid`：消费端唯一解读的字段，带 `tlc_pat_` 前缀的新令牌读干员数据时必须有值；
+ * 后端支持下列四个字段，未定义的键在反序列化时被静默忽略：
+ * - `game_uid`：明日方舟账号 UID / 终末地角色 roleId，新令牌读取游戏数据时必须有值；
+ * - `server_id`：终末地服务器 ID，省略或空白按空串精确定位，不能自动切换其它服务器；
  * - `game_name`：仅随签发与列表透传，不参与取数；
- * - `source`：后端当前**没有**这个字段（`PatPayload` 只有前两个），传了会被丢弃。
- *   保留在类型里是为了与后续扩展对齐，不要用它做前端分组依据。
+ * - `source`：签发方自填的来源标识，后端保存并透传，不参与鉴权或账号定位。
  */
 export interface PatPayload {
-  /** 要读取的游戏账号 UID（干员数据接口据此定位账号） */
+  /** 明日方舟账号 UID / 终末地角色 roleId */
   game_uid?: string | null
+  /** 终末地服务器 ID，缺省按空串定位；明日方舟接口忽略 */
+  server_id?: string | null
   /** 游戏名称，仅透传展示 */
   game_name?: string | null
-  /** 游戏账号来源（manual / skland），后端暂未定义该字段，会被忽略 */
+  /** 签发来源标识，仅透传展示 */
   source?: string | null
 }
 
@@ -80,7 +82,7 @@ export interface IssuePatParams {
   scope?: string
   /** 目标客户端，PAT 只支持个人令牌，留空或传平台客户端 */
   clientId?: string
-  /** 绑定的游戏账号；读干员数据时必须带 game_uid */
+  /** 绑定的游戏账号；新令牌取数需要 game_uid，终末地按实际绑定填写 server_id */
   payload?: PatPayload
 }
 

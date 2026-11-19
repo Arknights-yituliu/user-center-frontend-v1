@@ -41,6 +41,8 @@ const projects = loadPageLogic('ProjectsView', [
   'splitScopes',
   'coversScope',
   'inferProject',
+  'matchesPatAccount',
+  'buildPayload',
   'toConnections',
   'scopeLabels',
   'scopeLabel',
@@ -111,4 +113,75 @@ test('game data page selects new game scopes and inherited scopes for the active
   pats.value = [{ id: 6, scope: 'gama-data.read', expiresInSeconds: 60 }]
   assert.equal(gameData.findActiveGameDataToken(gameData.gameDataTokenScopes.read).id, 6)
   assert.equal(gameData.findActiveGameDataToken(gameData.gameDataTokenScopes.write), undefined)
+})
+
+test('PAT account matching separates games and exact Endfield servers', () => {
+  const efProject = projects.inferProject({ scope: 'endfield-data.read' })
+  const akProject = projects.inferProject({ scope: 'arknights-data.read' })
+  const account = { gameUid: '42', serverId: '1', project: efProject, source: 'skland' }
+  const pat = {
+    scope: 'endfield-data.read',
+    payload: { game_uid: ' 42 ', server_id: ' 1 ' },
+  }
+  assert.equal(projects.matchesPatAccount(pat, account), true)
+  assert.equal(projects.matchesPatAccount(pat, { ...account, serverId: '2' }), false)
+  assert.equal(projects.matchesPatAccount(pat, { ...account, gameUid: '43' }), false)
+  assert.equal(projects.matchesPatAccount(pat, { ...account, project: akProject }), false)
+  assert.equal(projects.matchesPatAccount({ ...pat, payload: { game_uid: '42' } }, account), false)
+  assert.equal(
+    projects.matchesPatAccount(
+      { ...pat, payload: { game_uid: '42', server_id: ' ' } },
+      { ...account, serverId: '' },
+    ),
+    true,
+  )
+  assert.equal(projects.matchesPatAccount({ scope: 'endfield-data.read' }, account), false)
+  assert.equal(
+    projects.matchesPatAccount(
+      {
+        scope: 'gama-data.read',
+        payload: { game_uid: '42', server_id: '1', game_name: efProject.name },
+      },
+      account,
+    ),
+    true,
+  )
+})
+
+test('PAT issuance preserves Endfield server identity and source', () => {
+  for (const serverId of ['1', '2', '']) {
+    const payload = projects.buildPayload({
+      gameUid: '42',
+      serverId,
+      source: 'skland',
+      project: projects.inferProject({ scope: 'endfield-data.read' }),
+    })
+    assert.equal(payload.game_uid, '42')
+    assert.equal(payload.server_id, serverId)
+    assert.equal(payload.source, 'skland')
+  }
+  const akPayload = projects.buildPayload({
+    gameUid: '42',
+    source: 'skland',
+    project: projects.inferProject({ scope: 'arknights-data.read' }),
+  })
+  assert.equal('server_id' in akPayload, false)
+})
+
+test('Endfield account cards retain the server returned by the account API', () => {
+  const page = loadPageLogic('ProjectsView', ['commonDataProjects', 'buildAccounts'], {
+    getTclUid: () => 'user-uid',
+    arknightsIcon: 'ak-icon',
+    endfieldIcon: 'ef-icon',
+  })
+  const accounts = page.buildAccounts(
+    [],
+    [
+      { roleId: '42', serverId: '1' },
+      { roleId: '42', serverId: '2' },
+    ],
+  )
+  assert.notEqual(accounts[0].id, accounts[1].id)
+  assert.equal(accounts[0].serverId, '1')
+  assert.equal(accounts[1].serverId, '2')
 })

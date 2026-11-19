@@ -55,9 +55,11 @@ type CommonAccount = {
   subtitle: string
   /** PAT payload 绑定的游戏账号 UID，用来把后端令牌认领回卡片 */
   gameUid: string
+  /** 终末地服务器 ID，与角色 UID 一起定位账号 */
+  serverId?: string
   /** 账号来源：skland 自动导入 / manual 手动上传 */
   source: 'skland' | 'manual'
-  /** 迁移来的旧令牌没有 payload，只能按项目归到这张占位卡，且不再支持签发 */
+  /** 旧令牌或未匹配到当前账号的令牌占位卡，不支持直接签发 */
   legacy?: boolean
   tokenConnections: CommonTokenConnection[]
 }
@@ -125,7 +127,7 @@ const pats = ref<PatVO[]>([])
 const accountBases = ref<CommonAccount[]>([])
 
 /**
- * 账号卡片 = 账号 + 按 `payload.game_uid` 认领到的令牌
+ * 账号卡片 = 账号 + 按游戏、payload.game_uid 与终末地 server_id 认领到的令牌
  *
  * 新接口下令牌绑定具体游戏账号，所以列表要按 payload 反查归属；迁移来的旧令牌没有
  * payload，只能按 scope / game_name 归到该项目的「未绑定账号」占位卡。
@@ -139,8 +141,7 @@ const accountCards = computed<CommonAccount[]>(() => {
   const legacyCards = new Map<string, CommonAccount>()
 
   for (const pat of pats.value) {
-    const gameUid = (pat.payload?.game_uid || '').trim()
-    const owner = gameUid ? cards.find((card) => card.gameUid === gameUid) : undefined
+    const owner = cards.find((card) => matchesPatAccount(pat, card))
     if (owner) {
       const list = owned.get(owner.id) || []
       list.push(pat)
@@ -163,14 +164,14 @@ const accountCards = computed<CommonAccount[]>(() => {
   return all
 })
 
-/** 迁移来的旧令牌占位卡：没有 payload，无法归到具体账号，也不支持再签发 */
+/** 无法匹配具体账号的令牌占位卡，不支持直接签发。 */
 function createLegacyCard(project: CommonProject): CommonAccount {
   return {
     id: `${project.id}:legacy`,
     project,
     icon: project.id === 'endfield' ? endfieldIcon : arknightsIcon,
     title: '未绑定账号',
-    subtitle: '迁移旧令牌',
+    subtitle: '旧令牌 / 未匹配账号',
     gameUid: '',
     source: 'skland',
     legacy: true,
@@ -187,6 +188,17 @@ function inferProject(pat: PatVO): CommonProject | undefined {
     (project) =>
       coversScope(pat.scope, project.scopeCodes.read) ||
       coversScope(pat.scope, project.scopeCodes.write),
+  )
+}
+
+/** 同角色不同服务器、不同游戏的相同 UID 均不能混用令牌。 */
+function matchesPatAccount(pat: PatVO, account: CommonAccount): boolean {
+  const gameUid = (pat.payload?.game_uid || '').trim()
+  if (!gameUid || gameUid !== account.gameUid.trim()) return false
+  if (inferProject(pat)?.id !== account.project.id) return false
+  return (
+    account.project.id !== 'endfield' ||
+    (pat.payload?.server_id || '').trim() === (account.serverId || '').trim()
   )
 }
 
@@ -320,6 +332,7 @@ function buildAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): Comm
       title: account.roleId,
       subtitle: `服务器 ${account.serverId || '默认'}`,
       gameUid: account.roleId,
+      serverId: account.serverId,
       source: 'skland' as const,
       tokenConnections: [],
     })),
@@ -366,16 +379,12 @@ function tokenName(account: CommonAccount, scope: CommonTokenScope): string {
   return label.length > 50 ? label.slice(0, 50) : label
 }
 
-/**
- * 签发时写入 payload，把令牌绑到这个游戏账号上
- *
- * 后端 `PatPayload` 目前只定义了 `game_uid` / `game_name`，`source` 会被静默忽略
- * （见 pat-api.ts 注释）；这里仍然带上，等后端补字段后无需再改前端。
- */
+/** 签发时绑定游戏账号，终末地同时写入服务器 ID，source 仅作为来源信息透传。 */
 function buildPayload(account: CommonAccount): PatPayload {
   return {
     game_uid: account.gameUid,
     game_name: account.project.name,
+    ...(account.project.id === 'endfield' ? { server_id: account.serverId || '' } : {}),
     source: account.source,
   }
 }
@@ -538,9 +547,7 @@ onMounted(() => {
           森空岛数据同步
           <v-icon icon="mdi-cloud-sync-outline" size="16"></v-icon>
         </RouterLink>
-        <RouterLink class="project-visit-button" to="/read-token-test">
-          测试读取 Token
-        </RouterLink>
+        <RouterLink class="project-visit-button" to="/read-token-test"> 测试读取 Token </RouterLink>
       </div>
       <div class="project-grid" aria-label="子账号连接列表">
         <article
@@ -563,8 +570,7 @@ onMounted(() => {
                 </div>
                 <div class="project-identity-copy" :style="projectNameStyle(account.title)">
                   <p>
-                    {{ account.project.name
-                    }}<template v-if="!account.legacy"> · UID</template>
+                    {{ account.project.name }}<template v-if="!account.legacy"> · UID</template>
                   </p>
                   <h2>{{ account.title }}</h2>
                   <span class="project-identity-subtitle">{{ account.subtitle }}</span>
@@ -762,7 +768,7 @@ onMounted(() => {
       0deg,
       transparent 0 calc(var(--projects-texture-grid-size) - 1px),
       var(--projects-texture-grid-color) calc(var(--projects-texture-grid-size) - 1px)
-      var(--projects-texture-grid-size)
+        var(--projects-texture-grid-size)
     );
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 36%, #000 100%);
   mask-image: linear-gradient(90deg, transparent 0%, #000 36%, #000 100%);
