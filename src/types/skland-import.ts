@@ -49,7 +49,7 @@ export interface EfTarget {
   key: string
   roleId: string
   serverId: string
-  /** 森空岛账号标识，取自绑定项 uid；官方 card/detail 接口允许省略，可能为空 */
+  /** 绑定项 uid；卡片请求优先获取账号级 userId，此值仅作回退，可能为空 */
   userId?: string
   nickname: string
   serverName: string

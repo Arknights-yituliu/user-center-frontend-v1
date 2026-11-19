@@ -78,6 +78,7 @@ test('bridge and official endpoints judge success by different codes', async () 
   )
 
   // 官方签名接口要求 code === 0：返回 TCL 体系的 200 必须判为失败
+  responses.push(ok({ teenager: { userId: 'account' } }))
   responses.push({ status: 200, data: { code: 200, data: { detail: { base: { roleId: '42' } } } } })
   await assert.rejects(
     endfield.getEndfieldCardDetail(credential, role),
@@ -107,13 +108,15 @@ test('credential and QR bridges use public TCL endpoints without session auth', 
 test('card query and HMAC signature use exactly the same encoded parameter order', async () => {
   const { endfield, responses, requests } = setup()
   const detail = { base: { roleId: '42' }, extraFutureField: { keep: true } }
-  responses.push(ok({ detail }))
+  responses.push(ok({ teenager: { userId: 'a+b&c' } }), ok({ detail }))
   assert.equal(
-    (await endfield.getEndfieldCardDetail(credential, { ...role, userId: 'a+b&c' })).extraFutureField
-      .keep,
+    (await endfield.getEndfieldCardDetail(credential, role)).extraFutureField.keep,
     true,
   )
-  const [url, { headers }] = requests[0]
+  const [userUrl, { headers: userHeaders }] = requests[0]
+  assert.equal(new URL(userUrl).pathname, '/api/v1/user/teenager')
+  assert.equal(userHeaders.cred, credential.cred)
+  const [url, { headers }] = requests[1]
   const path = '/web/v1/game/endfield/card/detail'
   const query = 'roleId=42&serverId=1&userId=a%2Bb%26c'
   assert.equal(new URL(url).search.slice(1), query)
@@ -124,33 +127,57 @@ test('card query and HMAC signature use exactly the same encoded parameter order
   assert.equal(headers.cred, credential.cred)
 })
 
-test('card detail omits userId when it is unavailable and sends it when present', async () => {
+test('card detail prefers the account userId over the binding uid, including numeric IDs', async () => {
   const { endfield, responses, requests } = setup()
-  responses.push(ok({ detail: { base: { roleId: '42' } } }))
-  await endfield.getEndfieldCardDetail(credential, {
-    roleId: '42',
-    serverId: '1',
-    nickname: '管理员',
-  })
-  assert.equal(new URL(requests[0][0]).search.slice(1), 'roleId=42&serverId=1')
+  for (const userId of ['account-user', 123456, 0]) {
+    responses.push(ok({ teenager: { userId } }), ok({ detail: { base: { roleId: '42' } } }))
+    await endfield.getEndfieldCardDetail(credential, { ...role, userId: 'binding-uid' })
+    const [url] = requests.at(-1)
+    assert.equal(new URL(url).searchParams.get('userId'), String(userId))
+  }
+})
 
-  responses.push(ok({ detail: { base: { roleId: '42' } } }))
+test('unavailable account userId falls back to the selected binding uid without retrying', async () => {
+  const { endfield, responses, requests } = setup()
+  const unavailable = [
+    new Error('Network error'),
+    { status: 200, data: { code: 500, message: 'unavailable' } },
+    ...[null, {}, { teenager: {} }, { teenager: { userId: ' ' } }, { teenager: { userId: {} } }].map(ok),
+  ]
+  for (const response of unavailable) {
+    responses.push(response, ok({ detail: { base: { roleId: '42' } } }))
+    await endfield.getEndfieldCardDetail(credential, { ...role, userId: 'selected-binding' })
+    assert.equal(new URL(requests.at(-1)[0]).searchParams.get('userId'), 'selected-binding')
+  }
+  assert.equal(requests.length, unavailable.length * 2)
+})
+
+test('card detail omits userId only when neither the account nor binding provides one', async () => {
+  const { endfield, responses, requests } = setup()
+  responses.push(ok({}), ok({ detail: { base: { roleId: '42' } } }))
   await endfield.getEndfieldCardDetail(credential, {
     roleId: '42',
     serverId: '1',
     nickname: '管理员',
-    userId: 'account',
   })
-  assert.equal(new URL(requests[1][0]).search.slice(1), 'roleId=42&serverId=1&userId=account')
+  assert.equal(new URL(requests[1][0]).search.slice(1), 'roleId=42&serverId=1')
+
+  responses.push(ok({ teenager: { userId: 'account' } }), ok({ detail: { base: { roleId: '42' } } }))
+  await endfield.getEndfieldCardDetail(credential, {
+    roleId: '42',
+    serverId: '1',
+    nickname: '管理员',
+  })
+  assert.equal(new URL(requests[3][0]).search.slice(1), 'roleId=42&serverId=1&userId=account')
 })
 
 test('empty or mismatched card data cannot be imported', async () => {
   const { endfield, responses, requests } = setup()
   for (const detail of [undefined, {}, { base: { roleId: 'someone-else' } }]) {
-    responses.push(ok({ detail }))
+    responses.push(ok({ teenager: { userId: 'account' } }), ok({ detail }))
     await assert.rejects(endfield.getEndfieldCardDetail(credential, role), /角色|数据/)
   }
-  assert.equal(requests.length, 3)
+  assert.equal(requests.length, 6)
 })
 
 test('cloud upload preserves complete player data and uses the formal TCL session', async () => {
