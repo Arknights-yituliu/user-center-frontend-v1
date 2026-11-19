@@ -4,7 +4,7 @@ import '../../assets/css/account/login.v2.scss'
 import '../../assets/css/account/login.v2.phone.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {setUcSession, setUcTmpToken} from "../../api/user-center/request";
+import {setTclSession, setTclTmpToken} from "../../api/user-center/request";
 import {getOAuthTicket, register, sendEmailCode} from "../../api/user-center/user-api";
 
 /** 注册表单：用户名、密码、确认密码、邮箱、邮箱验证码均为必填，昵称选填 */
@@ -47,28 +47,30 @@ function checkField(value, label) {
 /**
  * 注册成功且处于 OAuth 授权回跳流程时：
  * 1. 用本次注册返回的内存 token 调 POST /oauth2/ticket 换取一次性票据（不写入 localStorage，与 OAuth 安全登录页一致）
- * 2. 携带 uc_ticket 回跳 authorize 继续授权
- * @param token 注册接口返回的 UC token
+ * 2. 携带 tcl_ticket 回跳 authorize 继续授权
+ * @param token 注册接口返回的 TCL token
  */
 async function redirectIfOAuth(token) {
     if (!oauthRedirect.value || !token) {
         return
     }
     try {
-        // 显式传入本次注册 token（ucRequest 中 token 参数优先级高于本地 localStorage）
+        // 显式传入本次注册 token（tclRequest 中 token 参数优先级高于本地 localStorage）
         const resp = await getOAuthTicket(token)
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
             return
         }
-        // 携带 uc_ticket 回跳原 authorize 地址；replace 避免票据残留浏览器历史
+        // 携带 tcl_ticket 回跳原 authorize 地址；replace 避免票据残留浏览器历史
         const target = new URL(oauthRedirect.value)
-        target.searchParams.set("uc_ticket", ticket)
+        // 清除旧参数，避免新旧票据值冲突
+        target.searchParams.delete("uc_ticket")
+        target.searchParams.set("tcl_ticket", ticket)
         createMessage({text: "注册成功，已换取票据，正在回跳授权页…", type: "success"})
         window.location.replace(target.toString())
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     }
 }
 
@@ -77,7 +79,7 @@ onMounted(() => {
     oauthRedirect.value = route.query.redirect ? String(route.query.redirect) : ""
 })
 
-/** 校验密码规则（与 UC 一致：6-32 位，数字、字母、@、下划线） */
+/** 校验密码规则（与 TCL 一致：6-32 位，数字、字母、@、下划线） */
 function checkPassword(password) {
     if (!/^[A-Za-z0-9@_]{6,32}$/.test(password)) {
         createMessage({text: "密码需为 6-32 位，仅允许数字、字母、@、下划线", type: "warning"})
@@ -87,7 +89,7 @@ function checkPassword(password) {
 }
 
 /**
- * 发送注册邮箱验证码（UC POST /auth/send-code，usage=register），成功后 60s 倒计时
+ * 发送注册邮箱验证码（TCL POST /auth/send-code，usage=register），成功后 60s 倒计时
  */
 async function sendVerificationCode() {
     const email = inputContent.value.email
@@ -111,14 +113,14 @@ async function sendVerificationCode() {
             }
         }, 1000)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         sendCodeLoading.value = false
     }
 }
 
 /**
- * 注册：调用 UC POST /auth/register（注册即自动登录）
+ * 注册：调用 TCL POST /auth/register（注册即自动登录）
  * 仅有账号密码一种注册方式：用户名、邮箱、邮箱验证码、密码必填，昵称选填
  */
 async function toRegister() {
@@ -174,19 +176,19 @@ async function toRegister() {
         const data = resp.data || {}
         // 处于 OAuth 授权回跳流程：不写入正式会话，临时 token 供授权确认页读取（授权完成后清除），换票回跳继续授权
         if (oauthRedirect.value) {
-            setUcTmpToken(data.token)
+            setTclTmpToken(data.token)
             redirectIfOAuth(data.token)
             return
         }
-        // 普通注册：保存 UC 会话并跳转首页
-        setUcSession(data.token, data.uid)
+        // 普通注册：保存 TCL 会话并跳转首页
+        setTclSession(data.token, data.uid)
         createMessage({type: 'success', text: '注册成功，即将转跳到首页'})
         // 原项目此处跳转 OperatorSurvey 干员导入流程（本项目无该路由），改为跳转首页
         setTimeout(() => {
             router.push({path: '/'})
         }, 1500)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         registerLoading.value = false
     }

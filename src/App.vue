@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { getUcToken } from './api/user-center/request'
-import { logoutUcSession } from './api/user-center/user-api'
+import { getTclToken } from './api/user-center/request'
+import { logoutTclSession } from './api/user-center/user-api'
 import arknightsIcon from './assets/ak.webp'
 import endfieldIcon from './assets/ef.webp'
 import ClassicShell from './components/ClassicShell.vue'
 
 const route = useRoute()
 const router = useRouter()
-const loggedIn = ref(!!getUcToken())
+const loggedIn = ref(!!getTclToken())
 const mobileNavigationOpen = ref(false)
 
 interface NavigationLink {
@@ -61,7 +61,7 @@ const isLanding = computed(() => route.name === 'LANDING')
 watch(
   () => route.fullPath,
   () => {
-    loggedIn.value = !!getUcToken()
+    loggedIn.value = !!getTclToken()
     mobileNavigationOpen.value = false
   },
 )
@@ -89,7 +89,7 @@ function closeMobileNavigation(): void {
 }
 
 async function handleLogout(): Promise<void> {
-  await logoutUcSession()
+  await logoutTclSession()
   router.push({ name: 'LOGIN' })
 }
 </script>

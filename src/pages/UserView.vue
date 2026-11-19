@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { getUcToken, getUcUid } from '../api/user-center/request'
-import { getUserProfile, updateProfile, type UcProfileVO } from '../api/user-center/user-api'
+import { getTclToken, getTclUid } from '../api/user-center/request'
+import { getUserProfile, updateProfile, type TclProfileVO } from '../api/user-center/user-api'
 import arknightsIcon from '../assets/ak.webp'
 import endfieldIcon from '../assets/ef.webp'
 import { createMessage } from '../utils/message'
@@ -10,7 +10,7 @@ import { createMessage } from '../utils/message'
 const LoginView = defineAsyncComponent(() => import('./account/login.vue'))
 const router = useRouter()
 const pageLoading = ref(true)
-const loggedIn = ref(!!getUcToken())
+const loggedIn = ref(!!getTclToken())
 // 待接入用户同步数据汇总接口；不使用已入驻工具数量冒充。
 const syncedToolCount = ref<number | null>(null)
 const hasReadUserGuide = ref(false)
@@ -20,8 +20,8 @@ const nicknameInput = ref<HTMLInputElement | null>(null)
 const newNickname = ref('')
 const editNicknameLoading = ref(false)
 
-const profile = ref<UcProfileVO>({
-  uid: Number(getUcUid()) || 0,
+const profile = ref<TclProfileVO>({
+  uid: Number(getTclUid()) || 0,
   nickname: '--',
   email: null,
   avatar: null,
@@ -31,7 +31,7 @@ const profile = ref<UcProfileVO>({
 })
 
 async function loadProfile(): Promise<void> {
-  if (!getUcToken()) {
+  if (!getTclToken()) {
     loggedIn.value = false
     pageLoading.value = false
     return
@@ -96,7 +96,7 @@ async function handleSubmitNickname(): Promise<void> {
     nicknameEditing.value = false
     createMessage({ text: '昵称修改成功', type: 'success' })
   } catch {
-    // 错误提示已在 ucRequest 内部统一弹出
+    // 错误提示已在 tclRequest 内部统一弹出
   } finally {
     editNicknameLoading.value = false
   }

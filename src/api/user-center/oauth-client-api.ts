@@ -1,4 +1,4 @@
-import { ucRequest, type UcResponse } from './request'
+import { tclRequest, type TclResponse } from './request'
 import type { ConsentScopeItem } from './user-api'
 
 /** OAuth 客户端认证方式 */
@@ -15,8 +15,8 @@ export interface OAuthScopeVO {
   sensitive: boolean
 }
 
-export function listOAuthClientScopes(): Promise<UcResponse<OAuthScopeVO[]>> {
-  return ucRequest<OAuthScopeVO[]>({ method: 'GET', url: '/user/oauth/client/scopes' })
+export function listOAuthClientScopes(): Promise<TclResponse<OAuthScopeVO[]>> {
+  return tclRequest<OAuthScopeVO[]>({ method: 'GET', url: '/user/oauth/client/scopes' })
 }
 
 /** OAuth 客户端信息（GET /user/oauth/client/list、GET /user/oauth/client/{clientId}） */
@@ -106,8 +106,8 @@ export interface UpdateClientParams {
  */
 export function registerOAuthClient(
   params: RegisterClientParams,
-): Promise<UcResponse<OAuthClientSecretVO>> {
-  return ucRequest<OAuthClientSecretVO>({
+): Promise<TclResponse<OAuthClientSecretVO>> {
+  return tclRequest<OAuthClientSecretVO>({
     method: 'POST',
     url: '/user/oauth/client/register',
     data: params,
@@ -118,8 +118,8 @@ export function registerOAuthClient(
  * 查询我的客户端列表（GET /user/oauth/client/list，文档第 6 节）
  * 只返回当前登录用户（owner_uid）名下的客户端，secret 永不下发
  */
-export function listOAuthClients(): Promise<UcResponse<OAuthClientVO[]>> {
-  return ucRequest<OAuthClientVO[]>({
+export function listOAuthClients(): Promise<TclResponse<OAuthClientVO[]>> {
+  return tclRequest<OAuthClientVO[]>({
     method: 'GET',
     url: '/user/oauth/client/list',
   })
@@ -130,8 +130,8 @@ export function listOAuthClients(): Promise<UcResponse<OAuthClientVO[]>> {
  * 归属校验失败返回 80008，不存在返回 90001
  * @param clientId 客户端 ID
  */
-export function getOAuthClient(clientId: string): Promise<UcResponse<OAuthClientVO>> {
-  return ucRequest<OAuthClientVO>({
+export function getOAuthClient(clientId: string): Promise<TclResponse<OAuthClientVO>> {
+  return tclRequest<OAuthClientVO>({
     method: 'GET',
     url: `/user/oauth/client/${encodeURIComponent(clientId)}`,
   })
@@ -146,8 +146,8 @@ export function getOAuthClient(clientId: string): Promise<UcResponse<OAuthClient
 export function updateOAuthClient(
   clientId: string,
   params: UpdateClientParams,
-): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: `/user/oauth/client/${encodeURIComponent(clientId)}/update`,
     data: params,
@@ -161,8 +161,8 @@ export function updateOAuthClient(
  */
 export function rotateOAuthClientSecret(
   clientId: string,
-): Promise<UcResponse<OAuthClientSecretVO>> {
-  return ucRequest<OAuthClientSecretVO>({
+): Promise<TclResponse<OAuthClientSecretVO>> {
+  return tclRequest<OAuthClientSecretVO>({
     method: 'POST',
     url: `/user/oauth/client/${encodeURIComponent(clientId)}/rotate-secret`,
   })
@@ -177,8 +177,8 @@ export function rotateOAuthClientSecret(
 export function setOAuthClientStatus(
   clientId: string,
   enabled: boolean,
-): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: `/user/oauth/client/${encodeURIComponent(clientId)}/${enabled ? 'enable' : 'disable'}`,
   })
@@ -189,8 +189,8 @@ export function setOAuthClientStatus(
  * 级联吊销该 client 名下全部 access token 和 refresh token，删除不可恢复
  * @param clientId 客户端 ID
  */
-export function deleteOAuthClient(clientId: string): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function deleteOAuthClient(clientId: string): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: `/user/oauth/client/${encodeURIComponent(clientId)}/delete`,
   })
@@ -222,8 +222,8 @@ export interface OAuthGrantGroup {
  * 查询我授权过的应用列表（GET /user/oauth/grants）
  * 按应用分组返回当前用户仍有效的授权记录；仅返回走授权码流程签发过 refresh_token 的授权
  */
-export function listOAuthGrants(): Promise<UcResponse<OAuthGrantGroup[]>> {
-  return ucRequest<OAuthGrantGroup[]>({
+export function listOAuthGrants(): Promise<TclResponse<OAuthGrantGroup[]>> {
+  return tclRequest<OAuthGrantGroup[]>({
     method: 'GET',
     url: '/user/oauth/grants',
   })
@@ -234,8 +234,8 @@ export function listOAuthGrants(): Promise<UcResponse<OAuthGrantGroup[]>> {
  * 按应用整体撤销：作废该应用名下全部 refresh_token 与 access_token，操作幂等
  * @param clientId 要撤销授权的应用（OAuth 客户端）ID
  */
-export function revokeOAuthGrant(clientId: string): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function revokeOAuthGrant(clientId: string): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: '/user/oauth/grants/revoke',
     data: { clientId },
@@ -259,8 +259,8 @@ export interface OAuthUserScopeVO {
  * 返回已授予权限与可选权限，供前端渲染勾选状态
  * @param clientId 应用（OAuth 客户端）ID
  */
-export function getUserScopes(clientId: string): Promise<UcResponse<OAuthUserScopeVO>> {
-  return ucRequest<OAuthUserScopeVO>({
+export function getUserScopes(clientId: string): Promise<TclResponse<OAuthUserScopeVO>> {
+  return tclRequest<OAuthUserScopeVO>({
     method: 'GET',
     url: `/user/oauth/grants/scopes?client_id=${encodeURIComponent(clientId)}`,
   })
@@ -272,8 +272,8 @@ export function getUserScopes(clientId: string): Promise<UcResponse<OAuthUserSco
  * @param clientId 应用（OAuth 客户端）ID
  * @param scopes 要追加的权限标识集合
  */
-export function grantUserScopes(clientId: string, scopes: string[]): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function grantUserScopes(clientId: string, scopes: string[]): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: '/user/oauth/grants/scopes/grant',
     data: { clientId, scopes },
@@ -286,8 +286,8 @@ export function grantUserScopes(clientId: string, scopes: string[]): Promise<UcR
  * @param clientId 应用（OAuth 客户端）ID
  * @param scopes 要取消的权限标识集合
  */
-export function revokeUserScopes(clientId: string, scopes: string[]): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function revokeUserScopes(clientId: string, scopes: string[]): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: '/user/oauth/grants/scopes/revoke',
     data: { clientId, scopes },

@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import UserView from '../pages/UserView.vue'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken } from '../api/user-center/request'
 import ProjectsView from '../pages/ProjectsView.vue'
 import ColorView from '../pages/ColorView.vue'
 import UIPreviewView from '../pages/UIPreviewView.vue'
@@ -99,7 +99,7 @@ const router = createRouter({
     },
     { path: '/user/common-data', redirect: { name: 'GAME_DATA' } },
     {
-      // 游戏数据管理：独立于通用数据维护的 UC 账号数据链路
+      // 游戏数据管理：独立于通用数据维护的 TCL 账号数据链路
       path: '/gamedata/arknights',
       name: 'GAME_DATA',
       component: GameDataView,
@@ -368,7 +368,7 @@ const router = createRouter({
     },
     {
       // OAuth 安全登录页：authorize 未登录时跳转进入（302 携带 ?redirect=<authorize地址>）。
-      // 区别于普通登录页：不读取本地 UC token 自动换票、登录后不将 token 写入 localStorage
+      // 区别于普通登录页：不读取本地 TCL token 自动换票、登录后不将 token 写入 localStorage
       path: '/oauth2/login',
       name: 'OAUTH_LOGIN',
       component: OAuthLoginView,
@@ -455,7 +455,7 @@ router.beforeEach((to, from) => {
   }
 
   // 受保护页面在开发和生产环境都要求有效登录态。
-  if (to.meta.requiresAuth && !getUcToken()) {
+  if (to.meta.requiresAuth && !getTclToken()) {
     return {
       name: to.meta.classicShell ? 'CLASSIC_LOGIN' : 'LOGIN',
       query: { returnTo: to.fullPath },

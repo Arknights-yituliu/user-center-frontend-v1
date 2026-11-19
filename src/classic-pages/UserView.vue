@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUcUid } from '../api/user-center/request'
+import { getTclUid } from '../api/user-center/request'
 import {
   getUserProfile,
-  logoutUcSession,
+  logoutTclSession,
   updateProfile,
-  type UcProfileVO,
+  type TclProfileVO,
 } from '../api/user-center/user-api'
 import { createMessage } from '../utils/message'
 
@@ -15,9 +15,9 @@ const router = useRouter()
 /** 页面加载状态（拉取用户资料期间展示加载） */
 const pageLoading = ref(true)
 
-/** 账户信息（接入 UC GET /user/profile 真实数据，接口返回前用本地兜底占位） */
-const profile = ref<UcProfileVO>({
-  uid: Number(getUcUid()) || 0,
+/** 账户信息（接入 TCL GET /user/profile 真实数据，接口返回前用本地兜底占位） */
+const profile = ref<TclProfileVO>({
+  uid: Number(getTclUid()) || 0,
   nickname: '--',
   email: null,
   avatar: null,
@@ -40,7 +40,7 @@ const newNickname = ref('')
 const editNicknameLoading = ref(false)
 
 /**
- * 页面初始化：拉取当前用户资料（UC GET /user/profile）
+ * 页面初始化：拉取当前用户资料（TCL GET /user/profile）
  * token 失效（80001/80002）时引导重新登录
  */
 onMounted(async () => {
@@ -51,7 +51,7 @@ onMounted(async () => {
       profile.value = { ...profile.value, ...resp.data }
     }
   } catch (e) {
-    // 类型收窄：UC 统一错误结构含 code/msg，token 失效（80001/80002）时引导重新登录
+    // 类型收窄：TCL 统一错误结构含 code/msg，token 失效（80001/80002）时引导重新登录
     const err = e as { code?: number } | null
     if (err && (err.code === 80001 || err.code === 80002)) {
       router.push({ name: 'LOGIN' })
@@ -71,7 +71,7 @@ function openEditNickname(): void {
 }
 
 /**
- * 提交修改昵称（UC POST /user/profile，昵称最长 20 字符）
+ * 提交修改昵称（TCL POST /user/profile，昵称最长 20 字符）
  * 成功后更新本地展示并关闭对话框
  */
 async function handleSubmitNickname(): Promise<void> {
@@ -91,7 +91,7 @@ async function handleSubmitNickname(): Promise<void> {
     editNicknameDialog.value = false
     createMessage({ text: '昵称修改成功', type: 'success' })
   } catch {
-    // 错误提示已在 ucRequest 内部统一弹出
+    // 错误提示已在 tclRequest 内部统一弹出
   } finally {
     editNicknameLoading.value = false
   }
@@ -101,7 +101,7 @@ async function handleSubmitNickname(): Promise<void> {
  * 退出登录：清除服务端与本地会话后跳转登录页
  */
 async function handleLogout(): Promise<void> {
-  await logoutUcSession()
+  await logoutTclSession()
   router.push({ name: 'LOGIN' })
 }
 </script>

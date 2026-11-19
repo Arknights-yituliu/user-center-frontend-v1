@@ -1,5 +1,5 @@
-import { ucRequest, type UcResponse } from './request'
-import { UC_CLIENT_ID } from './client-id'
+import { tclRequest, type TclResponse } from './request'
+import { TCL_CLIENT_ID } from './client-id'
 
 /**
  * 个人访问令牌（PAT）
@@ -89,15 +89,15 @@ export interface IssuePatParams {
  * 不消费、不轮转任何凭证；签发后明文可随时在列表里回看
  * @param params 签发参数
  */
-export function issuePat(params: IssuePatParams): Promise<UcResponse<PatIssueVO>> {
+export function issuePat(params: IssuePatParams): Promise<TclResponse<PatIssueVO>> {
   const body: Record<string, unknown> = {
     name: params.name,
     expires_in: params.expiresIn,
-    client_id: params.clientId || UC_CLIENT_ID,
+    client_id: params.clientId || TCL_CLIENT_ID,
   }
   if (params.scope) body.scope = params.scope
   if (params.payload) body.payload = params.payload
-  return ucRequest<PatIssueVO>({
+  return tclRequest<PatIssueVO>({
     method: 'POST',
     url: '/user/pat',
     data: body,
@@ -108,8 +108,8 @@ export function issuePat(params: IssuePatParams): Promise<UcResponse<PatIssueVO>
  * 查询我的 PAT 列表（GET /user/pat/list）
  * 按签发时间倒序，包含已过期记录；过期与否看 expiresInSeconds
  */
-export function listPats(): Promise<UcResponse<PatVO[]>> {
-  return ucRequest<PatVO[]>({
+export function listPats(): Promise<TclResponse<PatVO[]>> {
+  return tclRequest<PatVO[]>({
     method: 'GET',
     url: '/user/pat/list',
   })
@@ -120,8 +120,8 @@ export function listPats(): Promise<UcResponse<PatVO[]>> {
  * 幂等：id 不存在或不属于本人时返回成功但不删任何行
  * @param id 列表项自带的主键
  */
-export function revokePat(id: number): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function revokePat(id: number): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: '/user/pat/revoke',
     data: { id },
@@ -132,8 +132,8 @@ export function revokePat(id: number): Promise<UcResponse<null>> {
  * 撤销本人名下全部 PAT（POST /user/pat/revoke-all）
  * 无请求体；账号侧安全事件（改密、删除应用）不会联动，只能主动调用
  */
-export function revokeAllPats(): Promise<UcResponse<null>> {
-  return ucRequest<null>({
+export function revokeAllPats(): Promise<TclResponse<null>> {
+  return tclRequest<null>({
     method: 'POST',
     url: '/user/pat/revoke-all',
   })

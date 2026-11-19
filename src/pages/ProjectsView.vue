@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import SecondaryPageHeader from '../components/SecondaryPageHeader.vue'
-import { getUcToken, getUcUid } from '../api/user-center/request'
+import { getTclToken, getTclUid } from '../api/user-center/request'
 import {
   issuePat,
   listPats,
@@ -108,7 +108,7 @@ const commonDataProjects: CommonProject[] = [
 
 /** 当前展开明文的令牌：按记录 id 定位，避免同一档多条记录（含过期）互相影响 */
 const visibleTokenId = ref<number | null>(null)
-const isLoggedIn = ref(Boolean(getUcToken()))
+const isLoggedIn = ref(Boolean(getTclToken()))
 const tokensLoading = ref(false)
 const accountsLoading = ref(false)
 const tokenExpiry = ref(DEFAULT_TOKEN_EXPIRY)
@@ -296,7 +296,7 @@ function buildAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): Comm
   const arknightsProject = commonDataProjects.find((project) => project.id === 'arknights')
   const endfieldProject = commonDataProjects.find((project) => project.id === 'endfield')
   if (!arknightsProject || !endfieldProject) return []
-  const ucUid = getUcUid()
+  const tclUid = getTclUid()
 
   return [
     ...akAccounts.map((account) => {
@@ -308,7 +308,7 @@ function buildAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): Comm
         // 卡片主标题只放 UID，来源信息交给副标题，避免拼出 SKD_AK-xxx 这种难认的标识
         title: account.akUid,
         subtitle: source === 'manual' ? '手动数据维护' : '森空岛数据同步',
-        gameUid: source === 'manual' ? ucUid : account.akUid,
+        gameUid: source === 'manual' ? tclUid : account.akUid,
         source,
         tokenConnections: [],
       }
@@ -333,8 +333,8 @@ async function loadAccounts(): Promise<void> {
     const [akResponse, efAccounts] = await Promise.all([listAkAccounts(), listEfAccounts()])
     accountBases.value = buildAccounts(akResponse.data || [], efAccounts)
   } catch (error) {
-    const ucError = error as { code?: number } | null
-    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+    const tclError = error as { code?: number } | null
+    if (tclError && (tclError.code === 80001 || tclError.code === 80002)) {
       isLoggedIn.value = false
     }
   } finally {
@@ -350,8 +350,8 @@ async function loadPats(): Promise<void> {
     const response = await listPats()
     pats.value = response.data || []
   } catch (error) {
-    const ucError = error as { code?: number } | null
-    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+    const tclError = error as { code?: number } | null
+    if (tclError && (tclError.code === 80001 || tclError.code === 80002)) {
       isLoggedIn.value = false
       createMessage({ text: '登录已失效，请重新登录', type: 'warning' })
     }
@@ -407,7 +407,7 @@ async function generateCommonToken(account: CommonAccount, scope: CommonTokenSco
       type: 'success',
     })
   } catch {
-    // 业务错误（scope 超范围、payload 不合法等）由 ucRequest 统一提示
+    // 业务错误（scope 超范围、payload 不合法等）由 tclRequest 统一提示
   } finally {
     signingKey.value = null
   }
@@ -431,7 +431,7 @@ async function revokeCommonToken(
       type: 'success',
     })
   } catch {
-    // 业务错误由 ucRequest 统一提示
+    // 业务错误由 tclRequest 统一提示
   } finally {
     revokingKey.value = null
   }

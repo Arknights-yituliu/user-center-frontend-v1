@@ -3,7 +3,7 @@ import {onMounted, ref} from "vue";
 import '../../assets/css/account/login.v2.scss'
 import {createMessage} from "../../utils/message";
 import {useRoute, useRouter} from "vue-router";
-import {getUcToken, setUcSession, ucRequest} from "../../api/user-center/request";
+import {getTclToken, setTclSession, tclRequest} from "../../api/user-center/request";
 
 /** 登录表单：accountType=password 时用 账号(邮箱或用户名)+密码；accountType=email 时用 邮箱+验证码 */
 const inputContent = ref({
@@ -30,34 +30,36 @@ const oauthRedirect = ref("")
 /**
  * 登录成功后若处于 OAuth 授权回跳流程：
  * 1. 用刚登录的会话 token 调 POST /oauth2/ticket 换取一次性票据
- * 2. 携带 uc_ticket 回跳 authorize（跨站票据方案，不依赖 Cookie，登录页与 UC 不同域名也可用）
+ * 2. 携带 tcl_ticket 回跳 authorize（跨站票据方案，不依赖 Cookie，登录页与 TCL 不同域名也可用）
  */
 async function redirectIfOAuth() {
-    if (!oauthRedirect.value || !getUcToken()) {
+    if (!oauthRedirect.value || !getTclToken()) {
         return
     }
     try {
-        const resp = await ucRequest({method: "POST", url: "/oauth2/ticket"})
+        const resp = await tclRequest({method: "POST", url: "/oauth2/ticket"})
         const ticket = resp.data && resp.data.ticket
         if (!ticket) {
             createMessage({text: "换取登录票据失败：响应中无 ticket", type: "error"})
             return
         }
-        // 携带 uc_ticket 回跳原 authorize 地址；replace 避免票据残留浏览器历史
+        // 携带 tcl_ticket 回跳原 authorize 地址；replace 避免票据残留浏览器历史
         const target = new URL(oauthRedirect.value)
-        target.searchParams.set("uc_ticket", ticket)
+        // 清除旧参数，避免新旧票据值冲突
+        target.searchParams.delete("uc_ticket")
+        target.searchParams.set("tcl_ticket", ticket)
         createMessage({text: "登录成功，已换取票据，正在回跳授权页…", type: "success"})
         window.location.replace(target.toString())
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     }
 }
 
 onMounted(() => {
     // 解析 OAuth 授权回跳参数（authorize 未登录时 302 带 ?redirect=<authorize地址> 跳到本页）
     oauthRedirect.value = new URLSearchParams(window.location.search).get("redirect") || ""
-    // 已有本地 UC 会话且处于 OAuth 回跳流程：直接用现有会话换票回跳，无需再次手动登录
-    if (oauthRedirect.value && getUcToken()) {
+    // 已有本地 TCL 会话且处于 OAuth 回跳流程：直接用现有会话换票回跳，无需再次手动登录
+    if (oauthRedirect.value && getTclToken()) {
         redirectIfOAuth()
     }
 })
@@ -82,7 +84,7 @@ function checkField(value, label) {
 }
 
 /**
- * 发送登录邮箱验证码（UC POST /auth/send-code，usage=login），成功后 60s 倒计时
+ * 发送登录邮箱验证码（TCL POST /auth/send-code，usage=login），成功后 60s 倒计时
  */
 async function sendVerificationCode() {
     const email = inputContent.value.email
@@ -95,7 +97,7 @@ async function sendVerificationCode() {
     }
     sendCodeLoading.value = true
     try {
-        await ucRequest({
+        await tclRequest({
             method: "POST",
             url: "/auth/send-code",
             data: {email, usage: "login"},
@@ -111,18 +113,18 @@ async function sendVerificationCode() {
             }
         }, 1000)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         sendCodeLoading.value = false
     }
 }
 
 /**
- * 登录成功后的统一处理：保存 UC 会话并跳转
- * @param {{token:string, uid:string|number}} data UC 登录返回的 LoginVO
+ * 登录成功后的统一处理：保存 TCL 会话并跳转
+ * @param {{token:string, uid:string|number}} data TCL 登录返回的 LoginVO
  */
 function handleLoginSuccess(data) {
-    setUcSession(data.token, data.uid)
+    setTclSession(data.token, data.uid)
     // 处于 OAuth 授权回跳流程时，直接换票回跳继续授权，不走普通跳转
     if (oauthRedirect.value) {
         redirectIfOAuth()
@@ -143,7 +145,7 @@ function handleLoginSuccess(data) {
 }
 
 /**
- * 登录：按当前 tab 调 UC /auth/login
+ * 登录：按当前 tab 调 TCL /auth/login
  * - 密码登录：accountType=password，账号含 @ 视为邮箱否则视为用户名（兼容迁移用户）
  * - 邮箱登录：accountType=email，用验证码免密登录
  */
@@ -178,7 +180,7 @@ async function toLogin() {
             payload.email = form.email
             payload.verificationCode = form.verificationCode
         }
-        const resp = await ucRequest({
+        const resp = await tclRequest({
             method: "POST",
             url: "/auth/login",
             data: payload,
@@ -186,7 +188,7 @@ async function toLogin() {
         })
         handleLoginSuccess(resp.data || {})
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         loginLoading.value = false
     }

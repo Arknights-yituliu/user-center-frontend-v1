@@ -2,7 +2,7 @@
 import { onBeforeUnmount, reactive } from 'vue'
 import { RouterLink } from 'vue-router'
 import axios from 'axios'
-import { UC_BASE_URL } from '../api/BASE_URL'
+import { TCL_BASE_URL } from '../api/BASE_URL'
 
 interface ReadResult {
   path: string
@@ -65,7 +65,7 @@ async function testRead(item: GameTest): Promise<void> {
 
   async function read(path: string): Promise<ReadResult> {
     // 只使用待测试的 PAT，避免站内会话或 Cookie 影响测试结果。
-    const response = await axios.get<unknown>(`${UC_BASE_URL}${path}`, {
+    const response = await axios.get<unknown>(`${TCL_BASE_URL}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
       withCredentials: false,
       timeout: 15000,
@@ -109,7 +109,7 @@ onBeforeUnmount(() => {
       <h2>{{ item.title }}</h2>
       <p>
         数据读取接口：
-        <code>GET {{ UC_BASE_URL }}{{ readPaths[item.game] }}</code>
+        <code>GET {{ TCL_BASE_URL }}{{ readPaths[item.game] }}</code>
       </p>
       <p v-if="item.game === 'endfield'">
         终末地暂未提供 PAT 消费面，此接口只认 OAuth access_token；用 PAT 调用会返回 80001。

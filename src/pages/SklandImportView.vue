@@ -10,7 +10,7 @@ import ImportErrorFooter from '../components/skland-import/ImportErrorFooter.vue
 import { useSklandCredential } from '../composables/useSklandCredential'
 import { useSklandBinding } from '../composables/useSklandBinding'
 import { useSklandImport } from '../composables/useSklandImport'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken } from '../api/user-center/request'
 import type { GameScope } from '../types/skland-import'
 import '../assets/css/skland-import.scss'
 
@@ -27,7 +27,7 @@ const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
 
 const GAMES: GameScope[] = ['arknights', 'endfield']
 
-const loggedIn = ref(Boolean(getUcToken()))
+const loggedIn = ref(Boolean(getTclToken()))
 const step = ref<1 | 2 | 3 | 4>(1)
 const scopeWarning = ref('')
 

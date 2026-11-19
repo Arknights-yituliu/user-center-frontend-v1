@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken } from '../api/user-center/request'
 import { toSklandImportError, type SklandCredential } from '../api/skland-core'
 import { importAkData } from '../api/skland-ak-adapter'
 import { importEfData } from '../api/skland-ef-adapter'
@@ -25,7 +25,7 @@ function isImportError(value: unknown): value is SklandImportError {
 /**
  * 导入执行：按勾选分发两条上传管线
  *
- * - 上传与账号查询一律使用正式会话（getUcToken），仅有 OAuth 临时会话时直接拒绝，不产生写入
+ * - 上传与账号查询一律使用正式会话（getTclToken），仅有 OAuth 临时会话时直接拒绝，不产生写入
  * - 两条管线并行、失败隔离；**不实现任何重试**，错误原样汇总给页面底部
  */
 export function useSklandImport() {
@@ -78,7 +78,7 @@ export function useSklandImport() {
     reset()
 
     // 页面与路由守卫只认正式会话；这里再兜一次，确保不会用 OAuth 临时 token 写入
-    if (!getUcToken()) {
+    if (!getTclToken()) {
       sessionError.value = '请先登录酸橙云账号后再导入'
       return
     }

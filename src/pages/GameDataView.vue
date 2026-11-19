@@ -12,7 +12,7 @@ import {
   type AkOperatorVO,
 } from '../api/user-center/ak-account-api'
 import { listPats, type PatVO } from '../api/user-center/pat-api'
-import { getUcToken, getUcUid } from '../api/user-center/request'
+import { getTclToken, getTclUid } from '../api/user-center/request'
 import OperatorCellEditor from '../components/OperatorCellEditor.vue'
 import { buildManualUploadPayload, buildRosterRows, type RosterRow } from '../utils/operator-roster'
 import {
@@ -39,7 +39,7 @@ import { maskTokenMiddle } from '../utils/token-display'
 /**
  * 游戏数据管理页（/gamedata/arknights）
  *
- * 独立于「通用数据维护」页的酸橙云链路：只面对 UC 的 /user/ak-accounts 接口，
+ * 独立于「通用数据维护」页的酸橙云链路：只面对 TCL 的 /user/ak-accounts 接口，
  * 用森空岛的三种凭证来源拉取账号数据，选定账号后上传到当前登录用户。
  * 干员数据分页展示，手动修改先保留为本地草稿，点击上传后批量保存修改过的条目到个人手动版。
  */
@@ -95,7 +95,7 @@ const dirtyCount = computed(() => Object.keys(currentDrafts.value).length)
 const isSavingManual = ref(false)
 const canStartManualEditing = computed(
   () =>
-    Boolean(getUcUid()) &&
+    Boolean(getTclUid()) &&
     Object.keys(operatorStatic.value.operators).length > 0 &&
     !isLoadingAccounts.value &&
     !isLoadingOperators.value &&
@@ -250,7 +250,7 @@ function cancelAccountNoteEdit(): void {
  */
 function findActiveGameDataToken(scopeCode: string): PatVO | undefined {
   const targets =
-    activeSource.value === 'manual' ? [activeAkUid.value, getUcUid()] : [activeAkUid.value]
+    activeSource.value === 'manual' ? [activeAkUid.value, getTclUid()] : [activeAkUid.value]
   const usable = pats.value.filter(
     (record) => record.expiresInSeconds > 0 && coversGameDataScope(record.scope, scopeCode),
   )
@@ -285,7 +285,7 @@ async function copyGameDataToken(record: PatVO | undefined): Promise<void> {
 
 /** 读取 /projects 页面管理的 PAT，不在本页生成或吊销 Token。 */
 async function loadPats(): Promise<void> {
-  if (!getUcToken()) {
+  if (!getTclToken()) {
     pats.value = []
     return
   }
@@ -379,7 +379,7 @@ async function loadAccounts(): Promise<void> {
       await viewAccount(first.akUid, first.source || 'skland')
     }
   } catch {
-    // 业务错误已由 ucRequest 统一提示
+    // 业务错误已由 tclRequest 统一提示
   } finally {
     isLoadingAccounts.value = false
   }
@@ -438,14 +438,14 @@ async function uploadManualOperators(): Promise<void> {
     delete drafts[key]
     manualDrafts.value = drafts
     activeSource.value = 'manual'
-    activeAkUid.value = getUcUid()
+    activeAkUid.value = getTclUid()
     // 增量保存后读取真正的手动数据，避免把未上传的森空岛条目误当作已保存的手动记录。
     operators.value = []
     isManualEditing.value = false
     createMessage({ text: `已上传 ${payload.length} 名干员的修改`, type: 'success' })
     isLoadingOperators.value = true
     try {
-      const response = await getManualOperators(getUcUid())
+      const response = await getManualOperators(getTclUid())
       operators.value = response.data?.items || []
       sourceLoadError.value = false
     } catch {

@@ -1,5 +1,5 @@
 import type { EndfieldCardDetail } from '../skland-endfield-api'
-import { getUcToken, ucRequest } from './request'
+import { getTclToken, tclRequest } from './request'
 
 export interface EfAccount {
   roleId: string
@@ -17,9 +17,9 @@ export interface EfPlayerData {
 
 // 明确使用正式会话，与 OAuth 授权流程的临时会话隔离。
 export async function listEfAccounts(): Promise<EfAccount[]> {
-  const response = await ucRequest<EfAccount[]>({
+  const response = await tclRequest<EfAccount[]>({
     url: '/user/ef-accounts',
-    token: getUcToken(),
+    token: getTclToken(),
   })
   return response.data ?? []
 }
@@ -29,9 +29,9 @@ export async function getEfPlayerData(
   serverId: string,
 ): Promise<EfPlayerData | null> {
   const query = new URLSearchParams({ roleId, serverId })
-  const response = await ucRequest<EfPlayerData | null>({
+  const response = await tclRequest<EfPlayerData | null>({
     url: `/user/ef-accounts/player-data?${query}`,
-    token: getUcToken(),
+    token: getTclToken(),
   })
   return response.data ?? null
 }
@@ -42,11 +42,11 @@ export async function saveEfPlayerData(data: {
   serverId: string
   playerData: EndfieldCardDetail
 }): Promise<Omit<EfPlayerData, 'playerData'>> {
-  const response = await ucRequest<Omit<EfPlayerData, 'playerData'>>({
+  const response = await tclRequest<Omit<EfPlayerData, 'playerData'>>({
     method: 'POST',
     url: '/user/ef-accounts/player-data/save',
     data,
-    token: getUcToken(),
+    token: getTclToken(),
   })
   return response.data
 }

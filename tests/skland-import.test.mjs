@@ -50,7 +50,7 @@ const vue = {
 }
 
 function setup(options = {}) {
-  /** skland 官方签名请求（axios.get）与 UC 请求（ucRequest）统一记录 */
+  /** skland 官方签名请求（axios.get）与 TCL 请求（tclRequest）统一记录 */
   const calls = []
   const responses = []
 
@@ -69,19 +69,19 @@ function setup(options = {}) {
     isAxiosError: () => false,
   }
 
-  // 与真实 ucRequest 一致：成功解包 {code:200,data}，业务失败 throw 响应体
-  const ucRequest = async (config) => {
-    calls.push({ kind: 'uc', url: config.url, config })
+  // 与真实 tclRequest 一致：成功解包 {code:200,data}，业务失败 throw 响应体
+  const tclRequest = async (config) => {
+    calls.push({ kind: 'tcl', url: config.url, config })
     const body = nextResponse()
     if (!body || body.code !== 200) throw body
     return body
   }
 
   const request = {
-    ucRequest,
-    getUcToken: () => options.ucToken ?? 'formal-session',
-    getUcTmpToken: () => options.tmpToken ?? '',
-    getUcUid: () => 'uc-uid',
+    tclRequest,
+    getTclToken: () => options.tclToken ?? 'formal-session',
+    getTclTmpToken: () => options.tmpToken ?? '',
+    getTclUid: () => 'tcl-uid',
   }
 
   const types = loadModule('../src/types/skland-import.ts', {})
@@ -135,7 +135,7 @@ function setup(options = {}) {
 
 const credential = { cred: 'test-cred', token: 'test-token' }
 const sklandOk = (data) => ({ status: 200, data: { code: 0, data } })
-const ucOk = (data) => ({ code: 200, data })
+const tclOk = (data) => ({ code: 200, data })
 const akEntry = (over = {}) => ({
   uid: '1001',
   nickName: '刀客塔',
@@ -152,7 +152,7 @@ const bindingPayload = ({ ak = [], ef = [], app = {} } = {}) => ({
   ],
 })
 const sklandCalls = (calls) => calls.filter((call) => call.kind === 'skland')
-const ucCalls = (calls) => calls.filter((call) => call.kind === 'uc')
+const tclCalls = (calls) => calls.filter((call) => call.kind === 'tcl')
 
 test('a single binding request fans out to both games and preselects defaults', async () => {
   const { binding, responses, calls } = setup()
@@ -241,7 +241,7 @@ test('one side failing does not block the other and never retries', async () => 
     { code: 60002, msg: '外部系统接口调用异常' },
     // 终末地成功：卡片详情 + 上传
     sklandOk({ detail: { base: { roleId: '42' } } }),
-    ucOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
+    tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
 
   const akTarget = { game: 'arknights', key: 'arknights:1001', akUid: '1001', nickname: '刀客塔', serverName: '官服', isDefault: true }
@@ -265,7 +265,7 @@ test('one side failing does not block the other and never retries', async () => 
 
 test('unchecked games produce neither fetch nor upload requests', async () => {
   const { importer, calls, responses } = setup()
-  responses.push(ucOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }))
+  responses.push(tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }))
   importer.scope.endfield = false
 
   const akTarget = { game: 'arknights', key: 'arknights:1001', akUid: '1001', nickname: '刀客塔', serverName: '官服', isDefault: true }
@@ -277,16 +277,16 @@ test('unchecked games produce neither fetch nor upload requests', async () => {
     importer.results.value.map((item) => item.game).join(','),
     'arknights',
   )
-  assert.equal(ucCalls(calls).length, 1)
+  assert.equal(tclCalls(calls).length, 1)
   assert.equal(sklandCalls(calls).length, 0, '未勾选的终末地不应拉取卡片详情')
 })
 
 test('uploads use the formal session even when a temporary OAuth token exists', async () => {
   const { importer, calls, responses } = setup({ tmpToken: 'tmp-session' })
   responses.push(
-    ucOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
     sklandOk({ detail: { base: { roleId: '42' } } }),
-    ucOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
+    tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
 
   const akTarget = { game: 'arknights', key: 'arknights:1001', akUid: '1001', nickname: '刀客塔', serverName: '官服', isDefault: true }
@@ -294,13 +294,13 @@ test('uploads use the formal session even when a temporary OAuth token exists', 
 
   await importer.run(credential, [akTarget, efTarget])
 
-  const uploads = ucCalls(calls)
+  const uploads = tclCalls(calls)
   assert.equal(uploads.length, 2)
   assert.ok(uploads.every((call) => call.config.token === 'formal-session'))
 })
 
 test('without a formal session nothing is written to the cloud', async () => {
-  const { importer, calls } = setup({ ucToken: '' })
+  const { importer, calls } = setup({ tclToken: '' })
   const akTarget = { game: 'arknights', key: 'arknights:1001', akUid: '1001', nickname: '刀客塔', serverName: '官服', isDefault: true }
 
   await importer.run(credential, [akTarget])
@@ -313,9 +313,9 @@ test('the same credential object is reused by both adapters without re-parsing',
   const { binding, importer, responses, calls } = setup()
   responses.push(
     sklandOk(bindingPayload({ ak: [akEntry()], ef: [{ uid: 'acct', roles: [efRole()] }] })),
-    ucOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
     sklandOk({ detail: { base: { roleId: '42' } } }),
-    ucOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
+    tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
 
   await binding.load(credential)

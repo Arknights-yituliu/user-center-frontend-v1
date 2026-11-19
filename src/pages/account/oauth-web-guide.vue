@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { UC_BASE_URL } from '../../api/BASE_URL'
+import { TCL_BASE_URL } from '../../api/BASE_URL'
 import { createMessage } from '../../utils/message'
 
 interface GuideSection {
@@ -74,7 +74,7 @@ function sanitizeScopes(value: string): string {
 }
 
 const integration = reactive({
-  baseUrl: queryText('baseUrl') || UC_BASE_URL,
+  baseUrl: queryText('baseUrl') || TCL_BASE_URL,
   clientId: queryText('clientId'),
   redirectUri: queryText('redirectUri'),
   scopes: sanitizeScopes(queryText('scopes')) || 'user.read',
@@ -90,7 +90,7 @@ function valueOrPlaceholder(value: string, placeholder: string): string {
 }
 
 const baseUrl = computed(() =>
-  valueOrPlaceholder(integration.baseUrl, '{UC_BASE_URL}').replace(/\/+$/, ''),
+  valueOrPlaceholder(integration.baseUrl, '{TCL_BASE_URL}').replace(/\/+$/, ''),
 )
 const clientId = computed(() => valueOrPlaceholder(integration.clientId, '{CLIENT_ID}'))
 const redirectUri = computed(() => valueOrPlaceholder(integration.redirectUri, '{REDIRECT_URI}'))
@@ -243,7 +243,7 @@ function scrollToSection(id: string): void {
 }
 
 function resetParameters(): void {
-  integration.baseUrl = UC_BASE_URL
+  integration.baseUrl = TCL_BASE_URL
   integration.clientId = ''
   integration.redirectUri = ''
   integration.scopes = 'user.read'
