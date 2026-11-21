@@ -2,13 +2,14 @@
 import { onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import SecondaryPageHeader from '../components/SecondaryPageHeader.vue'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken, getTclUid } from '../api/user-center/request'
 import {
-  listCustomTokens,
-  revokeCustomToken,
-  signCustomToken,
-  type CustomTokenRecordVO,
-} from '../api/user-center/custom-token-api'
+  issuePat,
+  listPats,
+  revokePat,
+  type PatPayload,
+  type PatVO,
+} from '../api/user-center/pat-api'
 import { listAkAccounts, type AkAccountVO } from '../api/user-center/ak-account-api'
 import { listEfAccounts, type EfAccount } from '../api/user-center/ef-account-api'
 import arknightsIcon from '../assets/ak.webp'
@@ -19,10 +20,11 @@ import { maskTokenMiddle } from '../utils/token-display'
 
 type CommonTokenScope = 'read' | 'write'
 
-/** 一档权限对应的已签发令牌（由后端自定义令牌列表派生，不在前端伪造） */
+/** 一档权限对应的已签发 PAT。 */
 type CommonTokenConnection = {
+  id: number
   scope: CommonTokenScope
-  /** access_token 明文 */
+  /** PAT 明文 */
   token: string
   /** 签发时填写的自定义名称 */
   name: string
@@ -39,7 +41,6 @@ type CommonDataProject = {
   name: string
   /** 各档签发的 scope 标识：读 / 写 */
   scopeCodes: Record<CommonTokenScope, string>
-  tokenConnections: CommonTokenConnection[]
 }
 
 type AuthorizationSubAccount = {
@@ -48,6 +49,9 @@ type AuthorizationSubAccount = {
   icon: string
   title: string
   subtitle: string
+  gameUid: string
+  source: 'skland' | 'manual'
+  tokenConnections: CommonTokenConnection[]
 }
 
 /** 通用数据的授权粒度只有读、写两档 */
@@ -70,73 +74,58 @@ const commonTokenMeta: Record<
 /** 默认有效期 180 天 */
 const DEFAULT_TOKEN_EXPIRY = 180 * 86400
 
-/** 「长期」档：实际按 5 年（365 天 × 5）签发，展示上按长期处理 */
-const LONG_TERM_EXPIRY = 5 * 365 * 86400
-
-/** 可选有效期（秒）：直签接口的 expires_in 必填，由用户自行决定 */
-const tokenExpiryOptions = [
-  { label: '1 天', value: 86400 },
-  { label: '7 天', value: 7 * 86400 },
-  { label: '30 天', value: 30 * 86400 },
-  { label: '90 天', value: 90 * 86400 },
-  { label: '180 天', value: DEFAULT_TOKEN_EXPIRY },
-  { label: '长期', value: LONG_TERM_EXPIRY },
-]
-
 const commonDataProjects = reactive<CommonDataProject[]>([
   {
     id: 'arknights',
     name: '明日方舟',
-    scopeCodes: { read: 'ak-data.read', write: 'ak-data.write' },
-    tokenConnections: [],
+    scopeCodes: { read: 'arknights-data.read', write: 'arknights-data.write' },
   },
   {
     id: 'endfield',
     name: '明日方舟：终末地',
-    scopeCodes: { read: 'ef-data.read', write: 'ef-data.write' },
-    tokenConnections: [],
+    scopeCodes: { read: 'endfield-data.read', write: 'endfield-data.write' },
   },
 ])
 
-/** 当前展开明文的令牌：按令牌值定位，避免同一档多条记录（含过期）互相影响 */
-const visibleToken = ref<string | null>(null)
-const isLoggedIn = ref(Boolean(getUcToken()))
+/** 当前展开明文的 PAT：按记录 ID 定位。 */
+const visibleToken = ref<number | null>(null)
+const isLoggedIn = ref(Boolean(getTclToken()))
 const tokensLoading = ref(false)
+const pats = ref<PatVO[]>([])
 const subAccounts = ref<AuthorizationSubAccount[]>([])
 const subAccountsLoading = ref(false)
-const tokenExpiry = ref(DEFAULT_TOKEN_EXPIRY)
 /** 仅显示未过期令牌，默认开启；关闭后连过期记录一起展示 */
 const onlyUnexpired = ref(true)
-/** 正在签发的档位标识（projectId-scope），用于按钮禁用与防重复提交 */
+/** 正在签发的档位标识（子账号-scope），用于按钮禁用与防重复提交 */
 const signingKey = ref<string | null>(null)
 /** 正在吊销的档位标识 */
 const revokingKey = ref<string | null>(null)
 
-/** 档位唯一键 */
-function tokenKey(project: CommonDataProject, scope: CommonTokenScope): string {
-  return `${project.id}-${scope}`
+/** 子账号档位唯一键。 */
+function tokenKey(account: AuthorizationSubAccount, scope: CommonTokenScope): string {
+  return `${account.id}-${scope}`
 }
 
 /** 取某档当前仍有效的令牌（已过期的视为没有，可重新生成） */
 function findActiveConnection(
-  project: CommonDataProject,
+  account: AuthorizationSubAccount,
   scope: CommonTokenScope,
 ): CommonTokenConnection | undefined {
-  return project.tokenConnections.find(
+  return account.tokenConnections.find(
     (connection) => connection.scope === scope && connection.expiresInSeconds > 0,
   )
 }
 
 /** 某档是否已有仍有效的令牌 */
-function hasCommonToken(project: CommonDataProject, scope: CommonTokenScope): boolean {
-  return Boolean(findActiveConnection(project, scope))
+function hasCommonToken(account: AuthorizationSubAccount, scope: CommonTokenScope): boolean {
+  return Boolean(findActiveConnection(account, scope))
 }
 
 /** 按筛选条件返回要展示的令牌列表（默认只显示未过期的） */
-function visibleConnections(project: CommonDataProject): CommonTokenConnection[] {
+function visibleConnections(account: AuthorizationSubAccount): CommonTokenConnection[] {
   return onlyUnexpired.value
-    ? project.tokenConnections.filter((connection) => connection.expiresInSeconds > 0)
-    : project.tokenConnections
+    ? account.tokenConnections.filter((connection) => connection.expiresInSeconds > 0)
+    : account.tokenConnections
 }
 
 /** 拆分逗号分隔的 scope 字符串 */
@@ -155,10 +144,10 @@ const scopeLabels: Record<string, string> = {
   'config.write': '用户配置（写）',
   'gama-data.read': '全部游戏数据（读）',
   'gama-data.write': '全部游戏数据（写）',
-  'ak-data.read': '明日方舟数据（读）',
-  'ak-data.write': '明日方舟数据（写）',
-  'ef-data.read': '终末地数据（读）',
-  'ef-data.write': '终末地数据（写）',
+  'arknights-data.read': '明日方舟数据（读）',
+  'arknights-data.write': '明日方舟数据（写）',
+  'endfield-data.read': '终末地数据（读）',
+  'endfield-data.write': '终末地数据（写）',
   all: '全部权限',
 }
 
@@ -175,28 +164,36 @@ function scopeLabel(scope: string): string {
  */
 function coversScope(recordScope: string, scopeCode: string): boolean {
   const codes = splitScopes(recordScope)
-  const parent = scopeCode.replace(/^(ak|ef)-data\.(read|write)$/, 'gama-data.$2')
+  const parent = scopeCode.replace(
+    /^(arknights|endfield)-data\.(read|write)$/,
+    'gama-data.$2',
+  )
   return codes.includes(scopeCode) || codes.includes(parent) || codes.includes('all')
 }
 
-/** 把后端签发记录映射到各卡片各档位（含已过期记录；未过期的排在前面） */
-function applyTokenRecords(records: CustomTokenRecordVO[]): void {
-  for (const project of commonDataProjects) {
+/** 把 PAT 按 payload.game_uid 归属到具体子账号。 */
+function applyTokenRecords(records: PatVO[]): void {
+  for (const account of subAccounts.value) {
     const connections: CommonTokenConnection[] = []
-    // 一条记录可能同时覆盖读、写两档（scope 合并签发），只挂到先匹配到的档位，避免同一令牌展示两次
-    const seenTokens = new Set<string>()
+    const ownedRecords = records.filter(
+      (record) => (record.payload?.game_uid || '').trim() === account.gameUid,
+    )
+    const seenIds = new Set<number>()
+
     for (const scope of commonTokenScopes) {
-      const scopeCode = project.scopeCodes[scope]
-      const matched = records.filter(
-        (record) => !seenTokens.has(record.token) && coversScope(record.scope, scopeCode),
+      const scopeCode = account.project.scopeCodes[scope]
+      const matched = ownedRecords.filter(
+        (record) => !seenIds.has(record.id) && coversScope(record.scope, scopeCode),
       )
       const ordered = [
         ...matched.filter((record) => record.expiresInSeconds > 0),
         ...matched.filter((record) => record.expiresInSeconds <= 0),
       ]
-      for (const record of ordered) {
-        seenTokens.add(record.token)
+      const record = ordered[0]
+      if (record) {
+        seenIds.add(record.id)
         connections.push({
+          id: record.id,
           scope,
           token: record.token,
           name: record.name,
@@ -206,7 +203,8 @@ function applyTokenRecords(records: CustomTokenRecordVO[]): void {
         })
       }
     }
-    project.tokenConnections = connections
+
+    account.tokenConnections = connections
   }
 }
 
@@ -217,13 +215,16 @@ function buildSubAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): A
 
   return [
     ...akAccounts.map((account) => {
-      const source = account.source || 'skland'
+      const source: AuthorizationSubAccount['source'] = account.source === 'manual' ? 'manual' : 'skland'
       return {
         id: `arknights:${source}:${account.akUid}`,
         project: arknightsProject,
         icon: arknightsIcon,
         title: source === 'manual' ? '手动上传' : `AK-${account.akUid}`,
         subtitle: `${source === 'manual' ? 'AK-' : 'SKD_AK-'}${account.akUid}`,
+        gameUid: source === 'manual' ? getTclUid() : account.akUid,
+        source,
+        tokenConnections: [],
       }
     }),
     ...efAccounts.map((account) => ({
@@ -232,6 +233,9 @@ function buildSubAccounts(akAccounts: AkAccountVO[], efAccounts: EfAccount[]): A
       icon: endfieldIcon,
       title: `UID ${account.roleId}`,
       subtitle: `服务器 ${account.serverId || '默认'}`,
+      gameUid: account.roleId,
+      source: 'skland' as const,
+      tokenConnections: [],
     })),
   ]
 }
@@ -242,6 +246,7 @@ async function loadSubAccounts(): Promise<void> {
   try {
     const [akResponse, efAccounts] = await Promise.all([listAkAccounts(), listEfAccounts()])
     subAccounts.value = buildSubAccounts(akResponse.data || [], efAccounts)
+    applyTokenRecords(pats.value)
   } catch (error) {
     const ucError = error as { code?: number } | null
     if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
@@ -252,13 +257,14 @@ async function loadSubAccounts(): Promise<void> {
   }
 }
 
-/** 拉取我的自定义令牌列表并回填各档位 */
+/** 拉取我的 PAT 列表并按子账号回填。 */
 async function loadTokens(): Promise<void> {
   if (!isLoggedIn.value) return
   tokensLoading.value = true
   try {
-    const response = await listCustomTokens()
-    applyTokenRecords(response.data || [])
+    const response = await listPats()
+    pats.value = response.data || []
+    applyTokenRecords(pats.value)
   } catch (error) {
     const ucError = error as { code?: number } | null
     if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
@@ -270,59 +276,73 @@ async function loadTokens(): Promise<void> {
   }
 }
 
+/** PAT 名称要能区分子账号，且后端限制 50 字符。 */
+function tokenName(account: AuthorizationSubAccount, scope: CommonTokenScope): string {
+  return `${account.project.name}-${account.title}-${commonTokenMeta[scope].label}`.slice(0, 50)
+}
+
+/** PAT 绑定当前子账号的游戏 UID。 */
+function buildPayload(account: AuthorizationSubAccount): PatPayload {
+  return {
+    game_uid: account.gameUid,
+    game_name: account.project.name,
+  }
+}
+
 /**
- * 签发令牌（POST /user/oauth/custom-tokens）
- * 已存在时按「重置」处理：先签新的，成功后再吊销旧的，避免中途失败导致无可用令牌
+ * 签发 PAT（POST /user/pat）。
+ * 每个子账号的每个档位只保留一枚有效 PAT，重新签发成功后撤销旧 PAT。
  */
 async function generateCommonToken(
-  project: CommonDataProject,
+  account: AuthorizationSubAccount,
   scope: CommonTokenScope,
 ): Promise<void> {
-  const key = tokenKey(project, scope)
+  const key = tokenKey(account, scope)
   if (signingKey.value) return
-  const previous = findActiveConnection(project, scope)
+  const previous = findActiveConnection(account, scope)
   signingKey.value = key
   try {
-    const response = await signCustomToken({
-      expiresIn: tokenExpiry.value,
-      name: `${project.name}-${commonTokenMeta[scope].label}`,
-      scope: project.scopeCodes[scope],
+    const response = await issuePat({
+      expiresIn: DEFAULT_TOKEN_EXPIRY,
+      name: tokenName(account, scope),
+      scope: account.project.scopeCodes[scope],
+      payload: buildPayload(account),
     })
     if (previous) {
-      await revokeCustomToken(previous.token).catch(() => undefined)
+      await revokePat(previous.id).catch(() => undefined)
     }
     await loadTokens()
-    visibleToken.value = response.data?.access_token || null
+    visibleToken.value = response.data?.id ?? null
     createMessage({
-      text: `${project.name}${commonTokenMeta[scope].label}已${previous ? '重置' : '生成'}`,
+      text: `${account.title}${commonTokenMeta[scope].label}已${previous ? '重置' : '生成'}`,
       type: 'success',
     })
   } catch {
-    // 业务错误（scope 超范围、client_id 缺失等）由 ucRequest 统一提示
+    // 业务错误由 tclRequest 统一提示。
   } finally {
     signingKey.value = null
   }
 }
 
-/** 吊销令牌（POST /user/oauth/custom-tokens/revoke），立即失效并从列表移除 */
+/** 吊销 PAT（POST /user/pat/revoke），按记录 ID 操作。 */
 async function revokeCommonToken(
-  project: CommonDataProject,
+  account: AuthorizationSubAccount,
   connection: CommonTokenConnection,
 ): Promise<void> {
   if (revokingKey.value) return
-  revokingKey.value = tokenKey(project, connection.scope)
+  revokingKey.value = tokenKey(account, connection.scope)
   try {
-    await revokeCustomToken(connection.token)
-    if (visibleToken.value === connection.token) {
+    await revokePat(connection.id)
+    if (visibleToken.value === connection.id) {
       visibleToken.value = null
     }
     await loadTokens()
     createMessage({
-      text: `${project.name}${commonTokenMeta[connection.scope].label}已撤销`,
+      text: `${account.title}${commonTokenMeta[connection.scope].label}已撤销`,
       type: 'success',
     })
   } catch {
-    // 业务错误由 ucRequest 统一提示
+    // 业务错误由 tclRequest 统一提示
   } finally {
     revokingKey.value = null
   }
@@ -352,24 +372,24 @@ function remainingText(seconds: number): string {
   return `剩余 ${Math.max(1, Math.floor(seconds / 60))} 分钟`
 }
 
-/** 某档是否正在签发 */
-function isSigning(project: CommonDataProject, scope: CommonTokenScope): boolean {
-  return signingKey.value === tokenKey(project, scope)
+/** 某个子账号档位是否正在签发。 */
+function isSigning(account: AuthorizationSubAccount, scope: CommonTokenScope): boolean {
+  return signingKey.value === tokenKey(account, scope)
 }
 
-/** 某档是否正在吊销 */
-function isRevoking(project: CommonDataProject, scope: CommonTokenScope): boolean {
-  return revokingKey.value === tokenKey(project, scope)
+/** 某个子账号档位是否正在吊销。 */
+function isRevoking(account: AuthorizationSubAccount, scope: CommonTokenScope): boolean {
+  return revokingKey.value === tokenKey(account, scope)
 }
 
 /** 切换某条令牌明文的显示 / 隐藏 */
 function toggleTokenVisibility(connection: CommonTokenConnection): void {
-  visibleToken.value = isTokenVisible(connection) ? null : connection.token
+  visibleToken.value = isTokenVisible(connection) ? null : connection.id
 }
 
 /** 是否展示某条令牌的明文 */
 function isTokenVisible(connection: CommonTokenConnection): boolean {
-  return visibleToken.value === connection.token
+  return visibleToken.value === connection.id
 }
 
 function projectNameStyle(name: string): Record<string, string> {
@@ -407,14 +427,6 @@ onMounted(() => {
     <section class="project-section" aria-labelledby="common-data-management-title">
       <div class="project-section-title-row">
         <h2 id="common-data-management-title" class="project-section-title">通用数据管理</h2>
-        <label class="token-expiry">
-          <span>有效期</span>
-          <select v-model.number="tokenExpiry" class="token-expiry-select">
-            <option v-for="option in tokenExpiryOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
         <label class="token-filter">
           <input v-model="onlyUnexpired" type="checkbox" />
           仅显示未过期
@@ -468,16 +480,16 @@ onMounted(() => {
             <div v-else class="common-token-group">
               <button
                 v-for="scope in commonTokenScopes"
-                v-show="!hasCommonToken(subAccount.project, scope)"
+                v-show="!hasCommonToken(subAccount, scope)"
                 :key="scope"
                 class="primary-button"
                 type="button"
-                :disabled="isSigning(subAccount.project, scope)"
-                @click="generateCommonToken(subAccount.project, scope)"
+                :disabled="isSigning(subAccount, scope)"
+                @click="generateCommonToken(subAccount, scope)"
               >
                 <v-icon icon="mdi-key-plus" size="16"></v-icon>
                 {{
-                  isSigning(subAccount.project, scope)
+                  isSigning(subAccount, scope)
                     ? '签发中…'
                     : commonTokenMeta[scope].buttonLabel
                 }}
@@ -493,16 +505,16 @@ onMounted(() => {
           <div v-else-if="!isLoggedIn" class="content-empty">
             <span>登录后可查看与管理 Token</span>
           </div>
-          <div v-else-if="!visibleConnections(subAccount.project).length" class="content-empty">
-            <span v-if="subAccount.project.tokenConnections.length">
+          <div v-else-if="!visibleConnections(subAccount).length" class="content-empty">
+            <span v-if="subAccount.tokenConnections.length">
               暂无未过期的 Token（已隐藏过期记录）
             </span>
             <span v-else>暂无已生成的 Token</span>
           </div>
           <div v-else class="content-list">
             <div
-              v-for="connection in visibleConnections(subAccount.project)"
-              :key="connection.token"
+              v-for="connection in visibleConnections(subAccount)"
+              :key="connection.id"
               class="content-item content-item-token"
               :class="{ 'content-item-expired': connection.expiresInSeconds <= 0 }"
             >
@@ -553,8 +565,8 @@ onMounted(() => {
                   type="button"
                   aria-label="重置 Token"
                   title="重置 Token"
-                  :disabled="isSigning(subAccount.project, connection.scope)"
-                  @click="generateCommonToken(subAccount.project, connection.scope)"
+                  :disabled="isSigning(subAccount, connection.scope)"
+                  @click="generateCommonToken(subAccount, connection.scope)"
                 >
                   <v-icon icon="mdi-autorenew" size="16"></v-icon>
                 </button>
@@ -563,8 +575,8 @@ onMounted(() => {
                   type="button"
                   aria-label="撤销 Token"
                   title="撤销 Token"
-                  :disabled="isRevoking(subAccount.project, connection.scope)"
-                  @click="revokeCommonToken(subAccount.project, connection)"
+                  :disabled="isRevoking(subAccount, connection.scope)"
+                  @click="revokeCommonToken(subAccount, connection)"
                 >
                   <v-icon icon="mdi-key-remove" size="16"></v-icon>
                 </button>
@@ -984,35 +996,6 @@ onMounted(() => {
 .project-visit-button:focus-visible {
   outline: 2px solid var(--site-accent);
   outline-offset: 4px;
-}
-
-/* 有效期选择：与标题行的次级按钮同高同风格 */
-.token-expiry {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 6px;
-  color: var(--site-muted);
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.token-expiry-select {
-  min-height: 30px;
-  padding: 6px 9px;
-  border: 1px solid var(--site-line);
-  border-radius: 4px;
-  background: var(--site-paper);
-  color: var(--site-ink);
-  cursor: pointer;
-  font: inherit;
-}
-
-.token-expiry-select:hover,
-.token-expiry-select:focus-visible {
-  border-color: var(--site-accent);
-  color: var(--site-accent);
-  outline: none;
 }
 
 /* 过期筛选：默认勾选「仅显示未过期」 */

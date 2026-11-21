@@ -2,7 +2,7 @@
 import {ref, computed, onMounted} from "vue";
 import {createMessage} from "../../utils/message";
 import {useRouter} from "vue-router";
-import { getUcToken } from "../../api/user-center/request";
+import { getTclToken } from "../../api/user-center/request";
 import {
     getUserProfile,
     sendEmailCode,
@@ -65,11 +65,11 @@ function startCountdown(countdownRef) {
 }
 
 /**
- * 页面初始化：校验 UC 登录态，拉取用户资料判断 绑定/换绑 模式
+ * 页面初始化：校验 TCL 登录态，拉取用户资料判断 绑定/换绑 模式
  * 未登录跳转登录页
  */
 onMounted(async () => {
-    if (!getUcToken()) {
+    if (!getTclToken()) {
         createMessage({text: "请先登录", type: "warning"})
         router.push({name: "LOGIN"})
         return
@@ -89,7 +89,7 @@ onMounted(async () => {
 })
 
 /**
- * 发送旧邮箱验证码（换绑模式，UC POST /user/email/send-change-code，无参数）
+ * 发送旧邮箱验证码（换绑模式，TCL POST /user/email/send-change-code，无参数）
  * 验证码由服务端发到当前绑定邮箱，无需（也不能）回传邮箱
  */
 async function toSendOldCode() {
@@ -103,14 +103,14 @@ async function toSendOldCode() {
         createMessage({text: "验证码已发送到当前绑定邮箱", type: "success"})
         startCountdown(oldCodeCountdown)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         sendOldCodeLoading.value = false
     }
 }
 
 /**
- * 发送新邮箱验证码（UC POST /auth/send-code usage=register，发到新邮箱）
+ * 发送新邮箱验证码（TCL POST /auth/send-code usage=register，发到新邮箱）
  */
 async function toSendNewCode() {
     const newEmail = inputContent.value.newEmail
@@ -127,7 +127,7 @@ async function toSendNewCode() {
         createMessage({text: "验证码已发送到新邮箱", type: "success"})
         startCountdown(newCodeCountdown)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         sendNewCodeLoading.value = false
     }
@@ -135,8 +135,8 @@ async function toSendNewCode() {
 
 /**
  * 提交绑定/换绑：
- * - 绑定模式（无邮箱）：UC POST /user/email/bind
- * - 换绑模式（有邮箱）：UC POST /user/email/change（校验旧邮箱+新邮箱双验证码）
+ * - 绑定模式（无邮箱）：TCL POST /user/email/bind
+ * - 换绑模式（有邮箱）：TCL POST /user/email/change（校验旧邮箱+新邮箱双验证码）
  * 成功后即可使用新邮箱作为登录账号
  */
 async function toSubmit() {
@@ -167,7 +167,7 @@ async function toSubmit() {
         currentEmail.value = form.newEmail
         inputContent.value = {oldCode: '', newEmail: '', newCode: ''}
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出（如 10001 旧邮箱不一致、20003 邮箱已被注册）
+        // 错误提示已在 tclRequest 内部统一弹出（如 10001 旧邮箱不一致、20003 邮箱已被注册）
     } finally {
         submitLoading.value = false
     }

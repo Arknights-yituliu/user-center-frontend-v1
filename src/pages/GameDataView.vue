@@ -11,8 +11,8 @@ import {
   type AkAccountVO,
   type AkOperatorVO,
 } from '../api/user-center/ak-account-api'
-import { listCustomTokens, type CustomTokenRecordVO } from '../api/user-center/custom-token-api'
-import { getUcToken, getUcUid } from '../api/user-center/request'
+import { listPats, type PatVO } from '../api/user-center/pat-api'
+import { getTclToken, getTclUid } from '../api/user-center/request'
 import OperatorCellEditor from '../components/OperatorCellEditor.vue'
 import { buildManualUploadPayload, buildRosterRows, type RosterRow } from '../utils/operator-roster'
 import {
@@ -56,10 +56,10 @@ const activeSource = ref<'skland' | 'manual'>('skland')
 const deleteAccountDialog = ref(false)
 const isEditingAccountNote = ref(false)
 const accountNoteDraft = ref('')
-const customTokens = ref<CustomTokenRecordVO[]>([])
+const pats = ref<PatVO[]>([])
 const gameDataTokenScopes = {
-  read: 'ak-data.read',
-  write: 'ak-data.write',
+  read: 'arknights-data.read',
+  write: 'arknights-data.write',
 } as const
 const operators = ref<AkOperatorVO[]>([])
 const isLoadingOperators = ref(false)
@@ -95,7 +95,7 @@ const dirtyCount = computed(() => Object.keys(currentDrafts.value).length)
 const isSavingManual = ref(false)
 const canStartManualEditing = computed(
   () =>
-    Boolean(getUcUid()) &&
+    Boolean(getTclUid()) &&
     Object.keys(operatorStatic.value.operators).length > 0 &&
     !isLoadingAccounts.value &&
     !isLoadingOperators.value &&
@@ -242,11 +242,14 @@ function cancelAccountNoteEdit(): void {
   accountNoteDraft.value = ''
 }
 
-/** 按 /projects 页面的规则匹配当前游戏的有效 Token。 */
-function findActiveGameDataToken(scopeCode: string): CustomTokenRecordVO | undefined {
-  return customTokens.value.find(
+/** 按 /projects 页面的规则匹配当前子账号的有效 PAT。 */
+function findActiveGameDataToken(scopeCode: string): PatVO | undefined {
+  const targets =
+    activeSource.value === 'manual' ? [activeAkUid.value, getTclUid()] : [activeAkUid.value]
+  const usable = pats.value.filter(
     (record) => record.expiresInSeconds > 0 && coversGameDataScope(record.scope, scopeCode),
   )
+  return usable.find((record) => targets.includes((record.payload?.game_uid || '').trim()))
 }
 
 function coversGameDataScope(recordScope: string, scopeCode: string): boolean {
@@ -254,16 +257,16 @@ function coversGameDataScope(recordScope: string, scopeCode: string): boolean {
     .split(',')
     .map((scope) => scope.trim())
     .filter(Boolean)
-  const parentScope = scopeCode.replace(/^ak-data\.(read|write)$/, 'gama-data.$1')
+  const parentScope = scopeCode.replace(/^arknights-data\.(read|write)$/, 'gama-data.$1')
   return scopes.includes(scopeCode) || scopes.includes(parentScope) || scopes.includes('all')
 }
 
 /** 与 /projects 页面保持一致，只展示 Token 首尾，复制时使用完整值。 */
-function maskedGameDataToken(record?: CustomTokenRecordVO): string {
+function maskedGameDataToken(record?: PatVO): string {
   return maskTokenMiddle(record?.token || '')
 }
 
-async function copyGameDataToken(record: CustomTokenRecordVO | undefined): Promise<void> {
+async function copyGameDataToken(record: PatVO | undefined): Promise<void> {
   if (!record) return
   try {
     await copyText(record.token)
@@ -272,17 +275,17 @@ async function copyGameDataToken(record: CustomTokenRecordVO | undefined): Promi
   }
 }
 
-/** 读取 /projects 页面管理的自定义 Token，不在本页生成或吊销 Token。 */
-async function loadCustomTokens(): Promise<void> {
-  if (!getUcToken()) {
-    customTokens.value = []
+/** 读取 /projects 页面管理的 PAT，不在本页生成或吊销 PAT。 */
+async function loadPats(): Promise<void> {
+  if (!getTclToken()) {
+    pats.value = []
     return
   }
   try {
-    const response = await listCustomTokens()
-    customTokens.value = response.data || []
+    const response = await listPats()
+    pats.value = response.data || []
   } catch {
-    customTokens.value = []
+    pats.value = []
   }
 }
 
@@ -368,7 +371,7 @@ async function loadAccounts(): Promise<void> {
       await viewAccount(first.akUid, first.source || 'skland')
     }
   } catch {
-    // 业务错误已由 ucRequest 统一提示
+    // 业务错误已由 tclRequest 统一提示
   } finally {
     isLoadingAccounts.value = false
   }
@@ -427,14 +430,14 @@ async function uploadManualOperators(): Promise<void> {
     delete drafts[key]
     manualDrafts.value = drafts
     activeSource.value = 'manual'
-    activeAkUid.value = getUcUid()
+    activeAkUid.value = getTclUid()
     // 增量保存后读取真正的手动数据，避免把未上传的森空岛条目误当作已保存的手动记录。
     operators.value = []
     isManualEditing.value = false
     createMessage({ text: `已上传 ${payload.length} 名干员的修改`, type: 'success' })
     isLoadingOperators.value = true
     try {
-      const response = await getManualOperators(getUcUid())
+      const response = await getManualOperators(getTclUid())
       operators.value = response.data?.items || []
       sourceLoadError.value = false
     } catch {
@@ -467,7 +470,7 @@ function goNextPage(): void {
 }
 
 void loadAccounts()
-void loadCustomTokens()
+void loadPats()
 
 // 干员静态表（名称 / 星级 / 职业）异步补全，失败时不影响表格本身的展示
 void loadOperatorStaticData().then((data) => {

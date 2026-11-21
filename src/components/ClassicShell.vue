@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { getUcToken } from '../api/user-center/request'
-import { logoutUcSession } from '../api/user-center/user-api'
+import { getTclToken } from '../api/user-center/request'
+import { logoutTclSession } from '../api/user-center/user-api'
 import { getThemeMode, setThemeMode, type ThemeMode } from '../plugins/vuetify/vuetify'
 
 interface NavItem {
@@ -27,7 +27,7 @@ const devNav: NavItem[] = [
 
 const route = useRoute()
 const router = useRouter()
-const loggedIn = ref(!!getUcToken())
+const loggedIn = ref(!!getTclToken())
 const mobileNavOpen = ref(false)
 const hideSidebar = computed(() => !!route.meta.hideSidebar)
 const themeMode = ref<ThemeMode>(getThemeMode())
@@ -35,7 +35,7 @@ const themeMode = ref<ThemeMode>(getThemeMode())
 watch(
   () => route.fullPath,
   () => {
-    loggedIn.value = !!getUcToken()
+    loggedIn.value = !!getTclToken()
     mobileNavOpen.value = false
   },
 )
@@ -54,7 +54,7 @@ function changeTheme(mode: ThemeMode): void {
 }
 
 async function handleLogout(): Promise<void> {
-  await logoutUcSession()
+  await logoutTclSession()
   router.push({ name: 'LOGIN' })
 }
 </script>

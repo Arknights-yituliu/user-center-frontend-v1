@@ -8,7 +8,7 @@ import {
   type EfAccount,
   type EfPlayerData,
 } from '../api/user-center/ef-account-api'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken } from '../api/user-center/request'
 import endfieldIcon from '../assets/ef.webp'
 
 const accounts = ref<EfAccount[]>([])
@@ -17,7 +17,7 @@ const selectedCloudKey = ref('')
 const cloudData = ref<EfPlayerData | null>(null)
 const cloudLoading = ref(false)
 const cloudError = ref('')
-const loggedIn = ref(Boolean(getUcToken()))
+const loggedIn = ref(Boolean(getTclToken()))
 let disposed = false
 let cloudVersion = 0
 

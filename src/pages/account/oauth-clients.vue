@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUcToken } from '../../api/user-center/request'
+import { getTclToken } from '../../api/user-center/request'
 import {
   deleteOAuthClient,
   listOAuthClients,
@@ -264,7 +264,7 @@ function grantTypeLabel(grantType: OAuthGrantType): string {
 }
 
 onMounted(async () => {
-  if (!getUcToken()) {
+  if (!getTclToken()) {
     createMessage({ text: '请先登录', type: 'warning' })
     await router.push({ name: 'LOGIN' })
     return
@@ -295,8 +295,8 @@ async function loadClients(): Promise<void> {
     const response = await listOAuthClients()
     clients.value = response.data || []
   } catch (error) {
-    const ucError = error as { code?: number } | null
-    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+    const tclError = error as { code?: number } | null
+    if (tclError && (tclError.code === 80001 || tclError.code === 80002)) {
       await router.push({ name: 'LOGIN' })
     }
   } finally {
@@ -351,7 +351,7 @@ async function submitCreate(): Promise<void> {
     credentialDialog.value = true
     await loadClients()
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     createLoading.value = false
   }
@@ -398,7 +398,7 @@ async function submitEdit(): Promise<void> {
     })
     await loadClients()
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     editLoading.value = false
   }
@@ -430,7 +430,7 @@ async function submitRotate(): Promise<void> {
     }
     credentialDialog.value = true
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     rotateLoading.value = false
   }
@@ -452,7 +452,7 @@ async function toggleStatus(client: OAuthClientVO): Promise<void> {
     createMessage({ text: enable ? '客户端已启用' : '客户端已停用', type: 'success' })
     await loadClients()
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     statusLoadingId.value = ''
   }
@@ -474,7 +474,7 @@ async function submitDelete(): Promise<void> {
     createMessage({ text: '客户端已删除', type: 'success' })
     await loadClients()
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     deleteLoading.value = false
   }

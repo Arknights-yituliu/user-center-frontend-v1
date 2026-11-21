@@ -33,7 +33,7 @@ function checkField(value, label) {
     return true
 }
 
-/** 校验密码规则（与 UC 一致：6-32 位，数字、字母、@、下划线） */
+/** 校验密码规则（与 TCL 一致：6-32 位，数字、字母、@、下划线） */
 function checkPassword(password) {
     if (!/^[A-Za-z0-9@_]{6,32}$/.test(password)) {
         createMessage({text: "密码需为 6-32 位，仅允许数字、字母、@、下划线", type: "warning"})
@@ -43,7 +43,7 @@ function checkPassword(password) {
 }
 
 /**
- * 发送重设密码验证码（UC POST /auth/reset-code），验证码发到账号绑定的邮箱
+ * 发送重设密码验证码（TCL POST /auth/reset-code），验证码发到账号绑定的邮箱
  * 注意：未绑定邮箱的账号无法走此流程（错误码 20006），需先登录后绑定邮箱
  */
 async function toSendCode() {
@@ -64,14 +64,14 @@ async function toSendCode() {
             }
         }, 1000)
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出（如 20006 未绑定邮箱）
+        // 错误提示已在 tclRequest 内部统一弹出（如 20006 未绑定邮箱）
     } finally {
         sendCodeLoading.value = false
     }
 }
 
 /**
- * 提交新密码（UC POST /auth/reset-password），成功后踢出该账号全部会话
+ * 提交新密码（TCL POST /auth/reset-password），成功后踢出该账号全部会话
  */
 async function toResetPassword() {
     const form = inputContent.value
@@ -93,7 +93,7 @@ async function toResetPassword() {
         await resetPassword(form.account, form.code, form.password)
         currentStepper.value = "resetSuccessful"
     } catch {
-        // 错误提示已在 ucRequest 内部统一弹出
+        // 错误提示已在 tclRequest 内部统一弹出
     } finally {
         resetLoading.value = false
     }

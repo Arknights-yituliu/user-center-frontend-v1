@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createMessage } from '../../utils/message'
-import { clearUcTmpToken } from '../../api/user-center/request'
+import { clearTclTmpToken } from '../../api/user-center/request'
 import { confirmConsent, getConsentInfo, type ConsentInfoVO } from '../../api/user-center/user-api'
 
 const router = useRouter()
@@ -116,14 +116,14 @@ async function submit(approve: boolean): Promise<void> {
     const redirectUrl = resp.data
     if (redirectUrl) {
       // 授权流程结束（同意/拒绝均已回跳第三方）：清除 OAuth 授权流程的临时 token，避免残留
-      clearUcTmpToken()
+      clearTclTmpToken()
       // replace 跳转，避免确认单 ID 残留浏览器历史
       window.location.replace(redirectUrl)
       return
     }
     createMessage({ text: '未获取到回跳地址', type: 'error' })
   } catch {
-    // 错误提示已在 ucRequest 内部统一弹出
+    // 错误提示已在 tclRequest 内部统一弹出
   } finally {
     submitting.value = false
   }

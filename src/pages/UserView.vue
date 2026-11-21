@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { defineAsyncComponent, nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { getUcToken, getUcUid } from '../api/user-center/request'
-import { getUserProfile, updateProfile, type UcProfileVO } from '../api/user-center/user-api'
+import { getTclToken, getTclUid } from '../api/user-center/request'
+import { getUserProfile, updateProfile, type TclProfileVO } from '../api/user-center/user-api'
 import arknightsIcon from '../assets/ak.webp'
 import endfieldIcon from '../assets/ef.webp'
 import { createMessage } from '../utils/message'
+import { viteServerStartedAt } from 'virtual:vite-server-started-at'
 
 const LoginView = defineAsyncComponent(() => import('./account/login.vue'))
 const router = useRouter()
 const pageLoading = ref(true)
-const loggedIn = ref(!!getUcToken())
+const loggedIn = ref(!!getTclToken())
 // 待接入用户同步数据汇总接口；不使用已入驻工具数量冒充。
 const syncedToolCount = ref<number | null>(null)
 const hasReadUserGuide = ref(false)
@@ -19,9 +20,18 @@ const nicknameEditing = ref(false)
 const nicknameInput = ref<HTMLInputElement | null>(null)
 const newNickname = ref('')
 const editNicknameLoading = ref(false)
+const viteServerStartedAtLabel = new Date(viteServerStartedAt).toLocaleString('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
 
-const profile = ref<UcProfileVO>({
-  uid: Number(getUcUid()) || 0,
+const profile = ref<TclProfileVO>({
+  uid: Number(getTclUid()) || 0,
   nickname: '--',
   email: null,
   avatar: null,
@@ -31,7 +41,7 @@ const profile = ref<UcProfileVO>({
 })
 
 async function loadProfile(): Promise<void> {
-  if (!getUcToken()) {
+  if (!getTclToken()) {
     loggedIn.value = false
     pageLoading.value = false
     return
@@ -96,7 +106,7 @@ async function handleSubmitNickname(): Promise<void> {
     nicknameEditing.value = false
     createMessage({ text: '昵称修改成功', type: 'success' })
   } catch {
-    // 错误提示已在 ucRequest 内部统一弹出
+    // 错误提示已在 tclRequest 内部统一弹出
   } finally {
     editNicknameLoading.value = false
   }
@@ -270,7 +280,7 @@ async function handleSubmitNickname(): Promise<void> {
           <h2 class="module-title">第三方项目</h2>
         </div>
 
-        <div class="module-operation">
+        <div class="module-operation single-action-content">
           <RouterLink class="module-action-link" to="/projects">
             <span class="module-action-icon">
               <v-icon icon="mdi-view-dashboard-outline" size="22"></v-icon>
@@ -394,6 +404,8 @@ async function handleSubmitNickname(): Promise<void> {
         <LoginView v-if="loginDialog" embedded @success="handleLoginSuccess" />
       </div>
     </v-dialog>
+
+    <footer class="debug-footer">Vite 启动时间 · {{ viteServerStartedAtLabel }}</footer>
   </main>
 </template>
 
@@ -852,6 +864,10 @@ async function handleSubmitNickname(): Promise<void> {
   line-height: 1.5;
 }
 
+.single-action-content {
+  width: min(100%, 300px);
+}
+
 .draft-help-preview-compact {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -946,17 +962,103 @@ async function handleSubmitNickname(): Promise<void> {
 
   .login-card-trigger {
     width: min(100%, 340px);
+    margin-inline: auto;
   }
 }
 
 @media (max-width: 600px) {
   .account-page {
     width: calc(100% - 32px);
-    padding-top: 24px;
+    padding-top: 20px;
+    padding-bottom: 40px;
+  }
+
+  .account-header {
+    gap: 24px;
+    padding: 16px 0 28px;
   }
 
   .account-header h1 {
     font-size: 52px;
   }
+
+  .account-intro {
+    margin-top: 16px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .content-module,
+  .test-content-module {
+    gap: 20px;
+    padding: 30px 0;
+  }
+
+  .test-content-module .module-title {
+    padding: 0 0 6px;
+    font-size: 32px;
+  }
+
+  .test-content-module .module-info {
+    padding: 6px 0 0;
+  }
+
+  .common-data-content,
+  .draft-help-preview-compact,
+  .about-module-actions {
+    grid-template-columns: 1fr;
+    width: min(100%, 340px);
+    margin-inline: auto;
+    gap: 12px;
+  }
+
+  .other-links-actions {
+    width: min(100%, 340px);
+    margin-inline: auto;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .single-action-content {
+    width: min(100%, 340px);
+    margin-inline: auto;
+  }
+
+  .test-content-module .module-action-link {
+    width: 100%;
+    min-height: 104px;
+    grid-template-columns: 52px minmax(0, 1fr) 22px;
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .test-content-module .module-action-icon,
+  .test-content-module .module-action-icon-image {
+    width: 52px;
+    height: 52px;
+  }
+
+  .test-content-module .module-action-title {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .test-content-module .module-action-description {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .flat-module-link {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+.debug-footer {
+  margin-top: 18px;
+  color: var(--site-muted);
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: center;
 }
 </style>

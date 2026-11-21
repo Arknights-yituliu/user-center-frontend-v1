@@ -1,4 +1,4 @@
-import { getUcToken, ucRequest, type UcResponse } from './request'
+import { getTclToken, tclRequest, type TclResponse } from './request'
 
 /**
  * 用户游戏数据管理接口（/user/ak-accounts）
@@ -132,11 +132,11 @@ export interface AkUploadLimitVO {
  * 按最近一次导入时间倒序，前端取首条即可默认展示最新导入的账号
  * @returns 已绑定账号列表，无绑定时为空数组
  */
-export function listAkAccounts(): Promise<UcResponse<AkAccountVO[]>> {
-  return ucRequest<AkAccountVO[]>({
+export function listAkAccounts(): Promise<TclResponse<AkAccountVO[]>> {
+  return tclRequest<AkAccountVO[]>({
     method: 'GET',
     url: '/user/ak-accounts',
-    token: getUcToken(),
+    token: getTclToken(),
   })
 }
 
@@ -146,11 +146,11 @@ export function listAkAccounts(): Promise<UcResponse<AkAccountVO[]>> {
  * @param akUid 游戏账号 UID（必须属于当前登录用户）
  * @returns 该账号的全部干员记录
  */
-export function getAkOperators(akUid: string): Promise<UcResponse<AkOperatorListVO>> {
-  return ucRequest<AkOperatorListVO>({
+export function getAkOperators(akUid: string): Promise<TclResponse<AkOperatorListVO>> {
+  return tclRequest<AkOperatorListVO>({
     method: 'GET',
     url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(akUid)}&source=skland`,
-    token: getUcToken(),
+    token: getTclToken(),
   })
 }
 
@@ -158,14 +158,14 @@ export function getAkOperators(akUid: string): Promise<UcResponse<AkOperatorList
  * 读取当前用户的手动修改版干员数据（GET /user/ak-accounts/operators?source=manual）
  * 手动版是按用户归属的个人副本，与具体游戏账号无关；`source=manual` 时 akUid 必须等于
  * 当前用户中心 UID（后端强校验）。只返回 owned=1 的记录，没有数据时 items 为空数组。
- * @param ucUid 当前登录用户的用户中心 UID
+ * @param tclUid 当前登录用户的用户中心 UID
  * @returns 手动版干员记录
  */
-export function getManualOperators(ucUid: string): Promise<UcResponse<AkOperatorListVO>> {
-  return ucRequest<AkOperatorListVO>({
+export function getManualOperators(tclUid: string): Promise<TclResponse<AkOperatorListVO>> {
+  return tclRequest<AkOperatorListVO>({
     method: 'GET',
-    url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(ucUid)}&source=manual`,
-    token: getUcToken(),
+    url: `/user/ak-accounts/operators?akUid=${encodeURIComponent(tclUid)}&source=manual`,
+    token: getTclToken(),
   })
 }
 
@@ -178,12 +178,12 @@ export function getManualOperators(ucUid: string): Promise<UcResponse<AkOperator
  */
 export function saveManualOperators(
   operators: AkOperatorSaveItem[],
-): Promise<UcResponse<AkOperatorSaveResultVO>> {
-  return ucRequest<AkOperatorSaveResultVO>({
+): Promise<TclResponse<AkOperatorSaveResultVO>> {
+  return tclRequest<AkOperatorSaveResultVO>({
     method: 'POST',
     url: '/user/ak-accounts/manual-operators/save',
     data: { operators },
-    token: getUcToken(),
+    token: getTclToken(),
   })
 }
 
@@ -197,11 +197,11 @@ export function saveManualOperators(
  */
 export function saveAkOperators(
   params: AkOperatorSaveParams,
-): Promise<UcResponse<AkOperatorSaveResultVO>> {
-  return ucRequest<AkOperatorSaveResultVO>({
+): Promise<TclResponse<AkOperatorSaveResultVO>> {
+  return tclRequest<AkOperatorSaveResultVO>({
     method: 'POST',
     url: '/user/ak-accounts/operators/save',
     data: params,
-    token: getUcToken(),
+    token: getTclToken(),
   })
 }

@@ -136,7 +136,7 @@ export function useSklandCredential(options: UseSklandCredentialOptions = {}) {
       error.value = {
         game: 'arknights',
         stage: 'credential',
-        message: '请粘贴官网 Token 或 account/info/hg 返回的完整 JSON',
+        message: '请输入 account/info/hg 返回的内容',
       }
       return
     }

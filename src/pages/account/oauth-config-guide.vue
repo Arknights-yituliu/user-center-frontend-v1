@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { UC_BASE_URL } from '../../api/BASE_URL'
+import { TCL_BASE_URL } from '../../api/BASE_URL'
 import { createMessage } from '../../utils/message'
 
 const sections = [
@@ -63,7 +63,7 @@ const saveFlowNotes = [
 ]
 
 const params = reactive({
-  baseUrl: UC_BASE_URL,
+  baseUrl: TCL_BASE_URL,
   category: 'editor',
   version: 'v1',
   name: 'default',
@@ -75,7 +75,7 @@ function valueOrPlaceholder(value: string, placeholder: string): string {
 }
 
 const baseUrl = computed(() =>
-  valueOrPlaceholder(params.baseUrl, '{UC_BASE_URL}').replace(/\/+$/, ''),
+  valueOrPlaceholder(params.baseUrl, '{TCL_BASE_URL}').replace(/\/+$/, ''),
 )
 const category = computed(() => valueOrPlaceholder(params.category, '{CATEGORY}'))
 const version = computed(() => valueOrPlaceholder(params.version, '{VERSION}'))
@@ -225,7 +225,7 @@ async function copyText(text: string, label = '代码'): Promise<void> {
 }
 
 function resetParameters(): void {
-  params.baseUrl = UC_BASE_URL
+  params.baseUrl = TCL_BASE_URL
   params.category = 'editor'
   params.version = 'v1'
   params.name = 'default'

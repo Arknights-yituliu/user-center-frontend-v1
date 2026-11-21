@@ -44,7 +44,7 @@ function setup() {
     return response
   }
   const axios = { get: transport, isAxiosError: () => false }
-  const session = { ucRequest: transport, getUcToken: () => 'formal-session' }
+  const session = { tclRequest: transport, getTclToken: () => 'formal-session' }
   const core = loadModule('../src/api/skland-core.ts', { axios, './user-center/request': session })
   const endfield = loadModule('../src/api/skland-endfield-api.ts', { './skland-core': core })
   const cloud = loadModule('../src/api/user-center/ef-account-api.ts', { './request': session })
@@ -70,14 +70,14 @@ test('credential input must be a cred,token pair and never touches the network',
 test('bridge and official endpoints judge success by different codes', async () => {
   const { core, endfield, responses } = setup()
 
-  // 桥接（UC 体系）要求 code === 200：返回森空岛体系的 0 必须判为失败
+  // 桥接（TCL 体系）要求 code === 200：返回森空岛体系的 0 必须判为失败
   responses.push({ code: 0, data: credential })
   await assert.rejects(
     core.getSklandCredentialByOfficialToken('official'),
     (error) => error instanceof core.SklandRequestError && error.code === 0,
   )
 
-  // 官方签名接口要求 code === 0：返回 UC 体系的 200 必须判为失败
+  // 官方签名接口要求 code === 0：返回 TCL 体系的 200 必须判为失败
   responses.push({ status: 200, data: { code: 200, data: { detail: { base: { roleId: '42' } } } } })
   await assert.rejects(
     endfield.getEndfieldCardDetail(credential, role),
@@ -85,7 +85,7 @@ test('bridge and official endpoints judge success by different codes', async () 
   )
 })
 
-test('credential and QR bridges use public UC endpoints without session auth', async () => {
+test('credential and QR bridges use public TCL endpoints without session auth', async () => {
   const { core, responses, requests } = setup()
   responses.push(
     bridgeOk(credential),
@@ -153,7 +153,7 @@ test('empty or mismatched card data cannot be imported', async () => {
   assert.equal(requests.length, 3)
 })
 
-test('cloud upload preserves complete player data and uses the formal UC session', async () => {
+test('cloud upload preserves complete player data and uses the formal TCL session', async () => {
   const { cloud, responses, requests } = setup()
   const playerData = { base: { roleId: '42' }, chars: [], extraFutureField: { keep: true } }
   responses.push(

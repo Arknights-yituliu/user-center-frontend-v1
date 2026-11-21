@@ -3,21 +3,22 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import SecondaryPageHeader from '../components/SecondaryPageHeader.vue'
 import CredentialPanel from '../components/skland-import/CredentialPanel.vue'
+import ImportGuidePanel from '../components/skland-import/ImportGuidePanel.vue'
+import ImportCommonQuestions from '../components/skland-import/ImportCommonQuestions.vue'
 import BindingSelector from '../components/skland-import/BindingSelector.vue'
-import ImportConfirmBar from '../components/skland-import/ImportConfirmBar.vue'
 import ImportProgress from '../components/skland-import/ImportProgress.vue'
 import ImportErrorFooter from '../components/skland-import/ImportErrorFooter.vue'
 import { useSklandCredential } from '../composables/useSklandCredential'
 import { useSklandBinding } from '../composables/useSklandBinding'
 import { useSklandImport } from '../composables/useSklandImport'
-import { getUcToken } from '../api/user-center/request'
+import { getTclToken } from '../api/user-center/request'
 import type { GameScope } from '../types/skland-import'
 import '../assets/css/skland-import.scss'
 
 /**
  * 森空岛数据同步内容（/gamedata-import?tab=skland）
  *
- * 一次凭证 → 一次绑定列表 → 勾选游戏与账号 → 确认 → 分别拉取上传。
+ * 一次凭证 → 一次绑定列表 → 勾选游戏与账号 → 分别拉取上传。
  * 只做导入：不含手动编辑与草稿上传，失败不重试，错误只汇总到页面底部。
  */
 
@@ -27,8 +28,8 @@ const props = withDefaults(defineProps<{ embedded?: boolean }>(), {
 
 const GAMES: GameScope[] = ['arknights', 'endfield']
 
-const loggedIn = ref(Boolean(getUcToken()))
-const step = ref<1 | 2 | 3 | 4>(1)
+const loggedIn = ref(Boolean(getTclToken()))
+const step = ref<1 | 2 | 3>(1)
 const scopeWarning = ref('')
 
 /* ---------- 绑定与选择 ---------- */
@@ -145,20 +146,9 @@ function onToggleScope(game: GameScope, value: boolean): void {
   if (!value) resetSelection(game)
 }
 
-function goToConfirm(): void {
-  if (!canConfirm.value) {
-    scopeWarning.value = missingSelection.value.length
-      ? '请为已勾选的游戏各选择一个账号。'
-      : '请至少勾选一个游戏并选择账号。'
-    return
-  }
-  scopeWarning.value = ''
-  step.value = 3
-}
-
 async function confirmImport(): Promise<void> {
   if (!canConfirm.value || !credential.value) return
-  step.value = 4
+  step.value = 3
   await importerState.run(credential.value, confirmTargets.value)
 }
 
@@ -174,8 +164,7 @@ function restart(): void {
 const steps = [
   { index: 1, label: '获取凭证' },
   { index: 2, label: '选择账号' },
-  { index: 3, label: '确认写入' },
-  { index: 4, label: '执行结果' },
+  { index: 3, label: '执行结果' },
 ]
 </script>
 
@@ -238,6 +227,7 @@ const steps = [
           @submit-pair="submitPair"
           @submit-official="submitOfficial"
         />
+        <ImportGuidePanel :method="method" />
       </section>
 
       <section v-else-if="step === 2" aria-labelledby="si-step-binding">
@@ -264,8 +254,8 @@ const steps = [
         <p v-if="scopeWarning" class="si-error" role="alert">{{ scopeWarning }}</p>
 
         <div class="si-actions">
-          <v-btn variant="flat" color="primary" :disabled="!canConfirm" @click="goToConfirm">
-            下一步：确认写入
+          <v-btn variant="flat" color="primary" :disabled="!canConfirm" @click="confirmImport">
+            确认导入
           </v-btn>
           <span v-if="missingSelection.length" class="si-hint">
             已勾选的游戏各需要一个账号：{{ missingSelection.length }} 个待选择。
@@ -273,28 +263,10 @@ const steps = [
         </div>
       </section>
 
-      <section v-else-if="step === 3" aria-labelledby="si-step-confirm">
-        <div class="si-heading">
-          <div>
-            <p class="si-label">STEP 03 / CONFIRM</p>
-            <h2 id="si-step-confirm" class="si-title">确认要写入的账号。</h2>
-          </div>
-        </div>
-
-        <ImportConfirmBar :targets="confirmTargets" />
-
-        <div class="si-actions">
-          <v-btn variant="flat" color="primary" :disabled="!canConfirm" @click="confirmImport">
-            确认导入
-          </v-btn>
-          <v-btn variant="text" @click="step = 2">返回修改</v-btn>
-        </div>
-      </section>
-
       <section v-else aria-labelledby="si-step-result">
         <div class="si-heading">
           <div>
-            <p class="si-label">STEP 04 / RESULT</p>
+            <p class="si-label">STEP 03 / RESULT</p>
             <h2 id="si-step-result" class="si-title">导入结果。</h2>
           </div>
           <v-btn v-if="!running" variant="text" @click="restart">重新发起导入</v-btn>
@@ -302,6 +274,8 @@ const steps = [
 
         <ImportProgress :running="running" :results="results" />
       </section>
+
+      <ImportCommonQuestions />
 
       <ImportErrorFooter :errors="errors" :session-error="sessionError" />
 

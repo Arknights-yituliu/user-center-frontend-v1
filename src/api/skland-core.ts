@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ucRequest, type UcResponse } from './user-center/request'
+import { tclRequest, type TclResponse } from './user-center/request'
 import type { GameScope, ImportStage, SklandImportError } from '../types/skland-import'
 
 /**
@@ -23,7 +23,7 @@ const SKLAND_DEVICE_ID =
 const SKLAND_VERSION = '1.2.0'
 /** 森空岛凭证过期错误码 */
 const SKLAND_EXPIRED_CODES = [10000, 10002]
-/** 凭证桥接成功码（UC 体系） */
+/** 凭证桥接成功码（TCL 体系） */
 const BRIDGE_SUCCESS_CODE = 200
 /** 官方接口成功码（森空岛体系） */
 const SKLAND_SUCCESS_CODE = 0
@@ -87,13 +87,13 @@ function readCode(payload: unknown): number | string | undefined {
 
 /**
  * 把任意请求失败统一转换成 SklandRequestError
- * @param error ucRequest 的 reject 值（响应体）、axios 异常或已有错误
+ * @param error tclRequest 的 reject 值（响应体）、axios 异常或已有错误
  * @param fallback 无法提取原因时的兜底文案
  */
 export function toSklandError(error: unknown, fallback: string): SklandRequestError {
   if (error instanceof SklandRequestError) return error
 
-  // ucRequest 业务失败时 reject 的是响应体本身
+  // tclRequest 业务失败时 reject 的是响应体本身
   const bodyMessage = readMessage(error)
   if (bodyMessage) {
     return new SklandRequestError(bodyMessage, undefined, readCode(error))
@@ -348,18 +348,18 @@ export async function requestSkland<T>(
 }
 
 /**
- * UC 凭证桥接请求器（auth.yituliu.cn /skland/*）
+ * TCL 凭证桥接请求器（auth.yituliu.cn /skland/*）
  *
  * 成功判定：`code === 200`；失败抛 SklandRequestError（带 code / 原始 msg）。
- * 使用 silent 请求，避免 ucRequest 内部弹全局气泡，提示位置交由调用方决定。
+ * 使用 silent 请求，避免 tclRequest 内部弹全局气泡，提示位置交由调用方决定。
  * @param path 接口路径（可自带查询串），如 /skland/qr/check?scanId=xxx
  * @param body 请求体
  * @returns 响应体中的 data 字段
  */
 export async function requestSklandBridge<T>(path: string, body?: unknown): Promise<T> {
-  let response: UcResponse<T>
+  let response: TclResponse<T>
   try {
-    response = await ucRequest<T>({
+    response = await tclRequest<T>({
       method: 'POST',
       url: path,
       data: body ?? null,
@@ -414,12 +414,12 @@ export function extractOfficialToken(input: string): string {
   try {
     payload = JSON.parse(input)
   } catch {
-    throw new SklandRequestError('内容格式不正确，请粘贴 account/info/hg 返回的完整 JSON')
+    throw new SklandRequestError('内容格式不正确，请复制 account/info/hg 返回的完整 JSON')
   }
 
   const data = isRecord(payload) && isRecord(payload.data) ? payload.data : undefined
   const token = data && typeof data.content === 'string' ? data.content.trim() : ''
-  if (!token) throw new SklandRequestError('未找到 data.content，请检查复制的官网 Token 内容')
+  if (!token) throw new SklandRequestError('未找到 token 字段，请检查复制的内容')
   return token
 }
 

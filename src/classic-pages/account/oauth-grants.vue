@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getUcToken } from '../../api/user-center/request'
+import { getTclToken } from '../../api/user-center/request'
 import {
   listOAuthGrants,
   revokeOAuthGrant,
@@ -19,7 +19,7 @@ const revokeTarget = ref<OAuthGrantGroup | null>(null)
 
 /** 页面加载：未登录先引导登录，随后拉取我的授权应用列表 */
 onMounted(async () => {
-  if (!getUcToken()) {
+  if (!getTclToken()) {
     createMessage({ text: '请先登录', type: 'warning' })
     await router.push({ name: 'LOGIN' })
     return
@@ -34,8 +34,8 @@ async function loadGrants(): Promise<void> {
     const response = await listOAuthGrants()
     groups.value = response.data || []
   } catch (error) {
-    const ucError = error as { code?: number } | null
-    if (ucError && (ucError.code === 80001 || ucError.code === 80002)) {
+    const tclError = error as { code?: number } | null
+    if (tclError && (tclError.code === 80001 || tclError.code === 80002)) {
       await router.push({ name: 'LOGIN' })
     }
   } finally {
@@ -61,7 +61,7 @@ async function submitRevoke(): Promise<void> {
     createMessage({ text: '已撤销该应用的授权', type: 'success' })
     await loadGrants()
   } catch {
-    // 业务错误由 ucRequest 统一展示。
+    // 业务错误由 tclRequest 统一展示。
   } finally {
     revokeLoading.value = false
   }

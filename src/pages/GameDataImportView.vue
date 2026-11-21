@@ -98,58 +98,44 @@ function selectTab(tab: GameDataImportTabId): void {
 }
 
 .gamedata-import-tabs-wrap {
-  overflow-x: auto;
   margin-top: 28px;
-  border-bottom: 1px solid var(--site-line);
-  background: var(--site-surface);
 }
 
 .gamedata-import-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-width: 600px;
+  gap: 14px;
 }
 
 .gamedata-import-tab {
-  position: relative;
-  min-height: 64px;
-  padding: 12px 18px;
-  border: 0;
-  border-top: 1px solid var(--site-line);
-  border-right: 1px solid var(--site-line);
-  background: transparent;
-  color: var(--site-muted);
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--site-line);
+  background: var(--site-surface);
+  color: var(--site-ink);
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
   text-align: left;
   transition:
     background-color 160ms ease,
-    color 160ms ease;
-}
-
-.gamedata-import-tab:first-child {
-  border-left: 1px solid var(--site-line);
-}
-
-.gamedata-import-tab::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  background: transparent;
-  content: '';
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .gamedata-import-tab:hover,
 .gamedata-import-tab.active {
+  border-color: var(--site-ink);
   background: var(--site-accent-soft);
-  color: var(--site-ink);
+  box-shadow: 6px 6px 0 var(--site-accent);
+  transform: translate(-2px, -2px);
 }
 
-.gamedata-import-tab.active::after {
-  background: var(--site-accent);
+.gamedata-import-tab.active {
+  border-left-width: 6px;
 }
 
 .gamedata-import-tab:focus-visible {
@@ -207,9 +193,11 @@ function selectTab(tab: GameDataImportTabId): void {
   }
 
   .gamedata-import-tab {
-    min-height: 58px;
-    padding: 10px 14px;
-    font-size: 12px;
+    min-height: 72px;
+    padding: 12px 10px;
+    font-size: 11px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 }
 </style>

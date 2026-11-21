@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
-import { getUcToken } from './api/user-center/request'
-import { logoutUcSession } from './api/user-center/user-api'
+import { getTclToken } from './api/user-center/request'
+import { logoutTclSession } from './api/user-center/user-api'
 import arknightsIcon from './assets/ak.webp'
 import endfieldIcon from './assets/ef.webp'
 import ClassicShell from './components/ClassicShell.vue'
 
 const route = useRoute()
 const router = useRouter()
-const loggedIn = ref(!!getUcToken())
+const loggedIn = ref(!!getTclToken())
 const mobileNavigationOpen = ref(false)
 
 interface NavigationLink {
@@ -61,7 +61,7 @@ const isLanding = computed(() => route.name === 'LANDING')
 watch(
   () => route.fullPath,
   () => {
-    loggedIn.value = !!getUcToken()
+    loggedIn.value = !!getTclToken()
     mobileNavigationOpen.value = false
   },
 )
@@ -89,7 +89,7 @@ function closeMobileNavigation(): void {
 }
 
 async function handleLogout(): Promise<void> {
-  await logoutUcSession()
+  await logoutTclSession()
   router.push({ name: 'LOGIN' })
 }
 </script>
@@ -101,6 +101,16 @@ async function handleLogout(): Promise<void> {
       <header v-if="!isLanding" class="site-header">
         <div class="header-inner">
           <nav class="header-primary" aria-label="主导航">
+            <button
+              class="site-nav-toggle"
+              type="button"
+              aria-label="打开页面导航"
+              aria-controls="site-mobile-nav"
+              :aria-expanded="mobileNavigationOpen"
+              @click="toggleMobileNavigation"
+            >
+              <v-icon :icon="mobileNavigationOpen ? 'mdi-close' : 'mdi-menu'"></v-icon>
+            </button>
             <RouterLink to="/" class="brand" @click="closeMobileNavigation">
               <span class="brand-mark">
                 <img src="/logo.svg" alt="" width="30" height="30" />
@@ -166,16 +176,6 @@ async function handleLogout(): Promise<void> {
           </nav>
 
           <div class="header-actions">
-            <button
-              class="site-nav-toggle"
-              type="button"
-              aria-label="打开页面导航"
-              aria-controls="site-mobile-nav"
-              :aria-expanded="mobileNavigationOpen"
-              @click="toggleMobileNavigation"
-            >
-              <v-icon :icon="mobileNavigationOpen ? 'mdi-close' : 'mdi-menu'"></v-icon>
-            </button>
             <template v-if="loggedIn">
               <button class="logout-button" type="button" aria-label="退出登录" @click="handleLogout">
                 <v-icon icon="mdi-logout-variant"></v-icon>
