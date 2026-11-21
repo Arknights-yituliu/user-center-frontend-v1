@@ -70,4 +70,12 @@ npm test
 - **凭证只在内存**：不写入 localStorage，刷新即失效；凭证过期（`10000`/`10002`）只提示重新获取，不做自动续期。
 - **失败不重试**：任一步失败不会自动重试，页面也没有重试按钮；失败的游戏、阶段、错误码与后端原始原因统一列在页面底部。
 - **写入使用正式会话**：上传与账号查询一律携带正式登录 token；仅有 OAuth 授权流程的临时会话时按未登录处理，不产生任何写入。
+- **终末地账号信息**：上传请求同时携带所选角色的 `serverId`、`serverType`、`serverName` 和 `nickName`（取自森空岛角色的 `nickname`）；缺失的展示信息传空字符串。
+- **明日方舟账号信息**：上传请求的 `playerInfo` 同时携带所选绑定账号的 `channelName`、`channelMasterId` 和 `nickName`；渠道标识统一传字符串，缺失的展示信息传空字符串。
 - 导入完成后的数据维护（手动编辑、草稿上传、云端档案查看）在对应游戏数据页进行，本页只负责导入。
+
+### PAT 游戏数据读取
+
+- `/projects` 签发的终末地 PAT 在 payload 中保存 `game_uid`（角色 ID）、`server_id`（服务器 ID）、`game_name` 和 `source`；令牌按游戏、角色与服务器匹配到账号卡片。
+- 读取测试页分别调用 `GET /pat/ak-accounts/operators` 和 `GET /pat/ef-accounts/player-data`，仅发送填写的 PAT，不读取站内会话或携带 Cookie。
+- 终末地新令牌需要 `endfield-data.read`，省略服务器按空串精确定位。此前未包含服务器的令牌若与实际绑定不符，请在对应服务器账号下重新生成；迁移旧令牌仍默认读取当前用户最新保存的数据。

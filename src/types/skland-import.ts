@@ -35,9 +35,12 @@ export interface AkTarget {
   key: string
   /** 游戏账号 uid，也是上传时的 playerInfo.akUid */
   akUid: string
+  /** 森空岛绑定项 nickName，缺失时为空串 */
   nickname: string
-  /** 渠道名（官服 / B 服） */
+  /** 森空岛绑定项 channelName（官服 / B 服），缺失时为空串 */
   serverName: string
+  /** 森空岛绑定项 channelMasterId，数值转字符串，缺失时为空串 */
+  channelMasterId: string
   /** 森空岛标记的默认账号（官服） */
   isDefault: boolean
 }
@@ -49,9 +52,11 @@ export interface EfTarget {
   key: string
   roleId: string
   serverId: string
-  /** 森空岛账号标识，取自绑定项 uid；官方 card/detail 接口允许省略，可能为空 */
+  /** 绑定项 uid；卡片请求优先获取账号级 userId，此值仅作回退，可能为空 */
   userId?: string
+  /** 以下为森空岛角色原始展示信息，缺失时为空串，上传时不使用界面兜底文案 */
   nickname: string
+  serverType: string
   serverName: string
   isDefault: boolean
 }

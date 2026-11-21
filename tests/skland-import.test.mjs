@@ -173,7 +173,7 @@ test('a single binding request fans out to both games and preselects defaults', 
   assert.equal(binding.efTargets.value.length, 2)
   assert.equal(binding.selectedAkKey.value, binding.akTargets.value[0].key)
   assert.equal(binding.selectedEf.value.roleId, '42')
-  // userId 直接取绑定项 uid，不再额外请求 user/teenager
+  // 绑定列表保留 uid，实际导入时才解析账号级 userId
   assert.equal(binding.efTargets.value[0].userId, 'acct')
 })
 
@@ -230,8 +230,78 @@ test('endfield targets drop deleted bindings, normalize IDs and deduplicate role
   assert.equal(target.roleId, '42')
   assert.equal(target.serverId, '1')
   assert.equal(target.nickname, '管理员')
-  // userId 来自绑定项 uid；绑定项没有 uid 时留空，card/detail 会省略该参数
+  // 此处保留绑定项 uid，供账号级 userId 不可用时回退
   assert.equal(target.userId, 'acct')
+})
+
+test('Arknights uploads the selected binding profile inside playerInfo with string channel IDs', async () => {
+  for (const profile of [
+    { nickName: '所选刀客塔', channelName: 'B服', channelMasterId: '2' },
+    { nickName: '官服刀客塔', channelName: '官服', channelMasterId: 1 },
+    { nickName: '', channelName: '', channelMasterId: 0 },
+    { nickName: '', channelName: '', channelMasterId: '' },
+    { nickName: undefined, channelName: undefined, channelMasterId: undefined },
+  ]) {
+    const { binding, importer, responses, calls } = setup()
+    responses.push(
+      sklandOk(bindingPayload({ ak: [akEntry(), akEntry({ uid: '1002', ...profile })] })),
+      tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    )
+
+    await binding.load(credential)
+    binding.select('arknights', binding.akTargets.value[1].key)
+    await importer.run(credential, binding.selectedTargets())
+
+    assert.equal(importer.results.value[0].ok, true)
+    const uploads = tclCalls(calls)
+    assert.equal(uploads.length, 1)
+    assert.equal(uploads[0].url, '/user/ak-accounts/operators/save')
+    assert.deepEqual(JSON.parse(JSON.stringify(uploads[0].config.data)), {
+      playerInfo: {
+        akUid: '1002',
+        channelName: profile.channelName ?? '',
+        channelMasterId: String(profile.channelMasterId ?? ''),
+        nickName: profile.nickName ?? '',
+      },
+      operators: [{ id: 'char_002_amiya' }],
+    })
+  }
+})
+
+test('Endfield uploads the selected role profile and keeps missing or empty metadata as empty strings', async () => {
+  for (const profile of [
+    { nickname: '所选管理员', serverType: 'official', serverName: '官服' },
+    { nickname: '', serverType: '', serverName: '' },
+    { nickname: undefined, serverType: undefined, serverName: undefined },
+  ]) {
+    const { binding, importer, responses, calls } = setup()
+    const detail = { base: { roleId: '43', name: '卡片名称' }, futureField: { keep: true } }
+    responses.push(
+      sklandOk(bindingPayload({ ef: [{ uid: 'acct', roles: [
+        efRole({ serverType: 'other', serverName: '其他服' }),
+        efRole({ roleId: '43', serverId: '2', ...profile }),
+      ] }] })),
+      sklandOk({ teenager: { userId: 'account-user' } }),
+      sklandOk({ detail }),
+      tclOk({ roleId: '43', serverId: '2', updateTime: 'now' }),
+    )
+
+    await binding.load(credential)
+    binding.select('endfield', binding.efTargets.value[1].key)
+    await importer.run(credential, binding.selectedTargets())
+
+    assert.equal(importer.results.value[0].ok, true)
+    const uploads = tclCalls(calls)
+    assert.equal(uploads.length, 1)
+    assert.deepEqual(JSON.parse(JSON.stringify(uploads[0].config.data)), {
+      roleId: '43',
+      serverId: '2',
+      serverType: profile.serverType ?? '',
+      serverName: profile.serverName ?? '',
+      nickName: profile.nickname ?? '',
+      playerData: detail,
+    })
+  }
 })
 
 test('one side failing does not block the other and never retries', async () => {
@@ -239,7 +309,8 @@ test('one side failing does not block the other and never retries', async () => 
   responses.push(
     // 明日方舟上传失败
     { code: 60002, msg: '外部系统接口调用异常' },
-    // 终末地成功：卡片详情 + 上传
+    // 终末地成功：账号级 userId + 卡片详情 + 上传
+    sklandOk({ teenager: { userId: 'account-user' } }),
     sklandOk({ detail: { base: { roleId: '42' } } }),
     tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
@@ -285,6 +356,7 @@ test('uploads use the formal session even when a temporary OAuth token exists', 
   const { importer, calls, responses } = setup({ tmpToken: 'tmp-session' })
   responses.push(
     tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    sklandOk({ teenager: { userId: 'account-user' } }),
     sklandOk({ detail: { base: { roleId: '42' } } }),
     tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
@@ -314,6 +386,7 @@ test('the same credential object is reused by both adapters without re-parsing',
   responses.push(
     sklandOk(bindingPayload({ ak: [akEntry()], ef: [{ uid: 'acct', roles: [efRole()] }] })),
     tclOk({ createdCount: 1, updatedCount: 0, unchangedCount: 0 }),
+    sklandOk({ teenager: { userId: 'account-user' } }),
     sklandOk({ detail: { base: { roleId: '42' } } }),
     tclOk({ roleId: '42', serverId: '1', updateTime: 'now' }),
   )
@@ -321,8 +394,17 @@ test('the same credential object is reused by both adapters without re-parsing',
   await binding.load(credential)
   await importer.run(credential, binding.selectedTargets())
 
-  // 绑定 1 次 + 卡片详情 1 次，没有任何重复的凭证桥接与多余的 user/teenager
-  assert.equal(sklandCalls(calls).length, 2)
+  assert.ok(importer.results.value.every((result) => result.ok))
+  // 绑定、账号级 userId、卡片详情各 1 次，均复用同一凭证。
+  const official = sklandCalls(calls)
+  assert.equal(official.length, 3)
+  assert.ok(official.every((call) => call.config.headers.cred === credential.cred))
+  const card = official.find((call) => call.url.includes('/endfield/card/detail'))
+  assert.equal(new URL(card.url).searchParams.get('userId'), 'account-user')
+  const upload = tclCalls(calls).find((call) => call.url.endsWith('/ef-accounts/player-data/save'))
+  assert.equal(upload.config.data.roleId, '42')
+  assert.equal(upload.config.data.serverId, '1')
+  assert.equal(upload.config.data.playerData.base.roleId, '42')
   assert.equal(
     calls.filter((call) => call.url?.includes('/skland/')).length,
     0,

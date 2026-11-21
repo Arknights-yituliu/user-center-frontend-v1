@@ -15,9 +15,10 @@ defineProps<{
   <div class="si-confirm">
     <div v-for="target in targets" :key="target.key" class="si-confirm-row">
       <span class="si-confirm-game">{{ gameLabel(target.game) }}</span>
-      <strong>{{ target.nickname }}</strong>
+      <strong>{{ target.nickname || targetUidText(target) }}</strong>
       <span class="si-confirm-meta">
-        UID {{ targetUidText(target) }} · {{ target.serverName }}
+        UID {{ targetUidText(target) }} ·
+        {{ target.serverName || (target.game === 'endfield' ? target.serverId : '默认') }}
       </span>
     </div>
   </div>

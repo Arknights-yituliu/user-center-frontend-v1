@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import OAuthUpdateNotice from '../../components/OAuthUpdateNotice.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { TCL_BASE_URL } from '../../api/BASE_URL'
 import { createMessage } from '../../utils/message'
@@ -276,6 +277,8 @@ onBeforeUnmount(() => observer?.disconnect())
         <p>使用 access token 为当前用户保存、读取和同步应用配置</p>
       </div>
     </header>
+
+    <OAuthUpdateNotice />
 
     <div class="scope-strip" role="note">
       <span class="scope-icon"><v-icon icon="mdi-shield-account-outline" size="22"></v-icon></span>

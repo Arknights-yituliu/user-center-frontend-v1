@@ -4,7 +4,7 @@ import { requestSkland, SklandRequestError, type SklandCredential } from './skla
  * 终末地（Endfield）数据接口
  *
  * 凭证获取、绑定列表解析与上传分别落在 skland-core 与 skland-ef-adapter，
- * 这里只保留「卡片详情」这一个森空岛直连接口与相关类型。
+ * 这里负责获取账号级 userId、读取卡片详情及相关类型。
  */
 
 /** 终末地角色 */
@@ -14,7 +14,7 @@ export interface EndfieldRole {
   nickname: string
   serverName?: string
   level?: number
-  /** 森空岛账号标识；官方接口允许省略，为空时不拼接该参数 */
+  /** 绑定项 uid，仅在无法获取账号级 userId 时作为回退值 */
   userId?: string
 }
 
@@ -55,11 +55,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** 与终末地工具页一致，优先读取账号级 userId，失败时回退到绑定项 uid。 */
+async function getEndfieldUserId(credential: SklandCredential, fallback = ''): Promise<string> {
+  try {
+    const data = await requestSkland<unknown>('/api/v1/user/teenager', '', credential)
+    const userId = isRecord(data) && isRecord(data.teenager) ? data.teenager.userId : undefined
+    if (typeof userId === 'string' || typeof userId === 'number') {
+      const value = String(userId).trim()
+      if (value) return value
+    }
+  } catch {
+    // 该辅助接口不可用时仍尝试读取卡片，交由卡片接口报告最终错误。
+  }
+  return fallback
+}
+
 /**
  * 获取终末地角色卡片详情
  *
- * `userId`（森空岛账号标识）是官方接口的可选参数，只有拿得到时才拼接，
- * 因此不再为它去请求语义无关的 user/teenager 接口。
+ * 仅在实际导入终末地时解析账号级 userId，避免未勾选游戏产生额外请求。
+ * 绑定项 uid 与账号级 userId 可能不同，不能直接将前者作为首选值。
  * @param credential 森空岛凭证
  * @param role 目标角色
  */
@@ -67,8 +82,9 @@ export async function getEndfieldCardDetail(
   credential: SklandCredential,
   role: EndfieldRole,
 ): Promise<EndfieldCardDetail> {
+  const userId = await getEndfieldUserId(credential, role.userId)
   const query = new URLSearchParams({ roleId: role.roleId, serverId: role.serverId })
-  if (role.userId) query.set('userId', role.userId)
+  if (userId) query.set('userId', userId)
 
   const data = await requestSkland<{ detail?: EndfieldCardDetail }>(
     '/web/v1/game/endfield/card/detail',

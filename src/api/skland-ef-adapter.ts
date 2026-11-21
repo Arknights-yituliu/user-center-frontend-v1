@@ -13,8 +13,8 @@ import { targetKey, type EfTarget, type ImportOutcome } from '../types/skland-im
  * 终末地是 roleId + serverId（+ 可选 userId）的账号粒度，绑定项里 role 又是嵌套结构，
  * 因此这里独立展开 / 过滤 / 去重，不与其他游戏共用数据模型。
  *
- * userId 只取绑定项自带的 uid（可能为空），不再为它单独请求 user/teenager：
- * 那个接口的语义是青少年模式状态，与游戏数据无关，而 card/detail 的 userId 本就是可选项。
+ * 此处保留绑定项 uid 作为回退值，卡片请求前由 skland-endfield-api
+ * 优先从 user/teenager 解析账号级 userId。
  */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,9 +62,9 @@ export function parseEfTargets(payload: SklandBindingPayload): EfTarget[] {
           roleId,
           serverId,
           userId: entryUid,
-          nickname: typeof role.nickname === 'string' && role.nickname ? role.nickname : roleId,
-          serverName:
-            typeof role.serverName === 'string' && role.serverName ? role.serverName : serverId,
+          nickname: typeof role.nickname === 'string' ? role.nickname : '',
+          serverType: typeof role.serverType === 'string' ? role.serverType : '',
+          serverName: typeof role.serverName === 'string' ? role.serverName : '',
           isDefault:
             role.isDefault === true || entryDefault || (!!defaultUid && defaultUid === roleId),
         },
@@ -104,12 +104,15 @@ export async function importEfData(
     await saveEfPlayerData({
       roleId: target.roleId,
       serverId: target.serverId,
+      serverType: target.serverType,
+      serverName: target.serverName,
+      nickName: target.nickname,
       playerData: detail,
     })
     return {
       game: 'endfield',
       ok: true,
-      summary: `已导入 ${target.nickname} 的终末地数据`,
+      summary: `已导入 ${target.nickname || target.roleId} 的终末地数据`,
     }
   } catch (error) {
     throw toSklandImportError(error, 'endfield', 'upload', '终末地数据上传失败')

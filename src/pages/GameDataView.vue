@@ -39,7 +39,7 @@ import { maskTokenMiddle } from '../utils/token-display'
 /**
  * 游戏数据管理页（/gamedata/arknights）
  *
- * 独立于「通用数据维护」页的酸橙云链路：只面对 UC 的 /user/ak-accounts 接口，
+ * 独立于「通用数据维护」页的酸橙云链路：只面对 TCL 的 /user/ak-accounts 接口，
  * 用森空岛的三种凭证来源拉取账号数据，选定账号后上传到当前登录用户。
  * 干员数据分页展示，手动修改先保留为本地草稿，点击上传后批量保存修改过的条目到个人手动版。
  */
@@ -222,14 +222,14 @@ function formatDateTime(value: string): string {
   )}:${pad(date.getMinutes())}`
 }
 
-/** 账号卡片使用的只读显示标识，不参与接口请求。 */
-function accountIdentifier(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
-  const prefix = account.source === 'manual' ? 'AK-' : 'SKD_AK-'
-  return `${prefix}${account.akUid}`
+/** 卡片副标题：数据来源，替代过去 SKD_AK-xxx 这种拼接标识（只用于展示）。 */
+function accountSourceLabel(account: Pick<AkAccountVO, 'source'>): string {
+  return account.source === 'manual' ? '手动数据维护' : '森空岛数据同步'
 }
 
-function defaultAccountName(account: Pick<AkAccountVO, 'akUid' | 'source'>): string {
-  return account.source === 'manual' ? '手动上传' : `AK-${account.akUid}`
+/** 账号默认名称（未填备注时展示）：直接用 UID，不再拼 AK- 前缀 */
+function defaultAccountName(account: Pick<AkAccountVO, 'akUid'>): string {
+  return account.akUid
 }
 
 function startAccountNoteEdit(): void {
@@ -242,7 +242,12 @@ function cancelAccountNoteEdit(): void {
   accountNoteDraft.value = ''
 }
 
-/** 按 /projects 页面的规则匹配当前子账号的有效 PAT。 */
+/**
+ * 按 /projects 页面的规则匹配当前账号的有效 Token
+ *
+ * PAT 在签发时就绑定了游戏账号（`payload.game_uid`），只读取绑定到当前账号的令牌；
+ * 无法匹配账号的旧 Token 不再作为兼容数据展示。
+ */
 function findActiveGameDataToken(scopeCode: string): PatVO | undefined {
   const targets =
     activeSource.value === 'manual' ? [activeAkUid.value, getTclUid()] : [activeAkUid.value]
@@ -275,7 +280,7 @@ async function copyGameDataToken(record: PatVO | undefined): Promise<void> {
   }
 }
 
-/** 读取 /projects 页面管理的 PAT，不在本页生成或吊销 PAT。 */
+/** 读取 /projects 页面管理的 PAT，不在本页生成或吊销 Token。 */
 async function loadPats(): Promise<void> {
   if (!getTclToken()) {
     pats.value = []
@@ -545,7 +550,15 @@ void loadOperatorStaticData().then((data) => {
           @click="viewAccount(account.akUid, account.source || 'skland')"
         >
           <span class="operator-account-card-title">{{ defaultAccountName(account) }}</span>
-          <span class="operator-account-card-subtitle">{{ accountIdentifier(account) }}</span>
+          <span class="operator-account-card-subtitle">{{ accountSourceLabel(account) }}</span>
+          <span class="operator-account-card-meta">
+            <small>账户昵称</small>
+            <strong>{{ account.nickName?.trim() || '未同步' }}</strong>
+          </span>
+          <span class="operator-account-card-meta">
+            <small>渠道名称</small>
+            <strong>{{ account.channelName?.trim() || '未同步' }}</strong>
+          </span>
           <span class="operator-account-card-meta">
             <small>上次更新时间</small>
             <strong>{{ formatDateTime(account.updateTime) }}</strong>

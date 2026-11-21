@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, reactive } from 'vue'
 import { RouterLink } from 'vue-router'
-import axios from 'axios'
 import { TCL_BASE_URL } from '../api/BASE_URL'
+import {
+  PAT_READ_PATHS as readPaths,
+  readPatGameData,
+  type PatGame,
+} from '../api/user-center/pat-data-api'
 
 interface ReadResult {
   path: string
@@ -11,7 +15,7 @@ interface ReadResult {
 }
 
 interface GameTest {
-  game: 'arknights' | 'endfield'
+  game: PatGame
   title: string
   token: string
   loading: boolean
@@ -23,6 +27,7 @@ const tests = reactive<GameTest[]>([
   { game: 'arknights', title: '明日方舟', token: '', loading: false, message: '', results: [] },
   { game: 'endfield', title: '终末地', token: '', loading: false, message: '', results: [] },
 ])
+
 const controllers = new Set<AbortController>()
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,27 +57,11 @@ async function testRead(item: GameTest): Promise<void> {
   item.results = []
   item.message = '正在读取…'
 
-  async function read(path: string): Promise<ReadResult> {
-    // 只使用待测试的 OAuth Token，避免站内会话或 Cookie 影响测试结果。
-    const response = await axios.get<unknown>(`${TCL_BASE_URL}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      withCredentials: false,
-      timeout: 15000,
-      signal: controller.signal,
-      validateStatus: () => true,
-    })
-    const result = { path, status: response.status, body: response.data }
-    item.results.push(result)
-    return result
-  }
-
   try {
-    const result = await read(
-      item.game === 'arknights'
-        ? '/oauth2/ak-accounts/operators'
-        : '/oauth2/ef-accounts/player-data',
-    )
-    item.message = isSuccess(result) ? '默认数据读取成功。' : '读取失败，请查看返回 JSON。'
+    const response = await readPatGameData(item.game, token, controller.signal)
+    const result = { path: readPaths[item.game], status: response.status, body: response.data }
+    item.results.push(result)
+    item.message = isSuccess(result) ? '数据读取成功。' : '读取失败，请查看返回 JSON。'
   } catch (error) {
     if (controller.signal.aborted) return
     item.message = '读取失败。'
@@ -102,14 +91,10 @@ onBeforeUnmount(() => {
       <h2>{{ item.title }}</h2>
       <p>
         数据读取接口：
-        <code
-          >GET {{ TCL_BASE_URL
-          }}{{
-            item.game === 'arknights'
-              ? '/oauth2/ak-accounts/operators'
-              : '/oauth2/ef-accounts/player-data'
-          }}</code
-        >
+        <code>GET {{ TCL_BASE_URL }}{{ readPaths[item.game] }}</code>
+      </p>
+      <p v-if="item.game === 'endfield'">
+        按令牌绑定的角色和服务器读取玩家数据。此前生成的令牌若读取失败，请在对应服务器的账号下重新生成。
       </p>
       <form @submit.prevent="testRead(item)">
         <v-textarea

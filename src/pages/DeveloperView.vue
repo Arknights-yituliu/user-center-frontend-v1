@@ -2,8 +2,9 @@
 import { computed, defineAsyncComponent, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SecondaryPageHeader from '../components/SecondaryPageHeader.vue'
+import OAuthUpdateNotice from '../components/OAuthUpdateNotice.vue'
 
-type DeveloperTabId = 'clients' | 'web' | 'server' | 'config'
+type DeveloperTabId = 'clients' | 'web' | 'server' | 'config' | 'updates'
 
 interface DeveloperTab {
   id: DeveloperTabId
@@ -32,6 +33,11 @@ const developerTabs: DeveloperTab[] = [
     label: 'OAuth 用户配置',
     icon: 'mdi-cloud-sync-outline',
   },
+  {
+    id: 'updates',
+    label: '更新与兼容',
+    icon: 'mdi-update',
+  },
 ]
 
 const tabComponents: Record<DeveloperTabId, Component> = {
@@ -39,6 +45,7 @@ const tabComponents: Record<DeveloperTabId, Component> = {
   web: defineAsyncComponent(() => import('./account/oauth-web-guide.vue')),
   server: defineAsyncComponent(() => import('./account/oauth-server-guide.vue')),
   config: defineAsyncComponent(() => import('./account/oauth-config-guide.vue')),
+  updates: defineAsyncComponent(() => import('./account/oauth-updates.vue')),
 }
 
 const route = useRoute()
@@ -117,6 +124,8 @@ function selectTab(value: unknown): void {
         </button>
       </nav>
     </div>
+
+    <OAuthUpdateNotice v-if="activeTab === 'clients'" />
 
     <section
       id="developer-tab-panel"
@@ -198,8 +207,8 @@ function selectTab(value: unknown): void {
 
 .developer-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  min-width: 760px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  min-width: 950px;
 }
 
 .developer-tab {
@@ -344,7 +353,7 @@ function selectTab(value: unknown): void {
   }
 
   .developer-tabs {
-    min-width: 700px;
+    min-width: 875px;
   }
 
   .developer-tabs-wrap {
@@ -374,7 +383,7 @@ function selectTab(value: unknown): void {
   }
 
   .developer-tabs {
-    min-width: 640px;
+    min-width: 800px;
   }
 
   .developer-tab {

@@ -48,14 +48,18 @@ export function parseAkTargets(payload: SklandBindingPayload): AkTarget[] {
           : ''
     if (!uid) return []
 
-    const channelName = text(entry.channelName) || '默认'
+    const channelName = text(entry.channelName)
     return [
       {
         game: 'arknights' as const,
         key: targetKey('arknights', [uid]),
         akUid: uid,
-        nickname: text(entry.nickName) || uid,
+        nickname: text(entry.nickName),
         serverName: channelName,
+        channelMasterId:
+          typeof entry.channelMasterId === 'number'
+            ? String(entry.channelMasterId)
+            : text(entry.channelMasterId),
         // 森空岛没有独立的默认标记，用「官服」作为唯一可识别的默认来源
         isDefault: entry.isOfficial === true,
       },
@@ -91,7 +95,12 @@ export async function importAkData(
 
   try {
     const saved = await saveAkOperators({
-      playerInfo: warehouse.playerInfo,
+      playerInfo: {
+        ...warehouse.playerInfo,
+        channelName: target.serverName,
+        channelMasterId: target.channelMasterId,
+        nickName: target.nickname,
+      },
       operators: warehouse.operators,
     })
     const { createdCount, updatedCount, unchangedCount } = saved.data
