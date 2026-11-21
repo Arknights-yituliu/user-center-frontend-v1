@@ -105,6 +105,12 @@ export interface AkOperatorSaveItem {
   potentialRank?: number | null | ''
 }
 
+/** 已拥有的皮肤，gainTs 为获得时间（Unix 秒），0 表示未知。 */
+export interface AkSkinSaveItem {
+  skinId: string
+  gainTs: number
+}
+
 /** 保存请求体（POST /user/ak-accounts/operators/save） */
 export interface AkOperatorSaveParams {
   playerInfo: {
@@ -119,6 +125,10 @@ export interface AkOperatorSaveParams {
   }
   /** 干员数组，不能为空 */
   operators: AkOperatorSaveItem[]
+  /** 非空时全量同步该账号的皮肤集合。 */
+  skins?: AkSkinSaveItem[]
+  /** 筛选后的角色快照，序列化为 JSON 字符串。 */
+  playerData?: string
 }
 
 /** 保存结果（POST /user/ak-accounts/operators/save） */

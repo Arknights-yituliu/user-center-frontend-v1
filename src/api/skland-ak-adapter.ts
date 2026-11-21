@@ -4,7 +4,7 @@ import {
   type SklandCredential,
 } from './skland-core'
 import { saveAkOperators } from './user-center/ak-account-api'
-import { getWarehouseInfo } from '../utils/skland'
+import { getPlayerDetails, getWarehouseInfo } from '../utils/skland'
 import {
   targetKey,
   type AkTarget,
@@ -77,12 +77,12 @@ export async function importAkData(
   target: AkTarget,
   credential: SklandCredential,
 ): Promise<ImportOutcome> {
-  let warehouse
-  try {
-    warehouse = await getWarehouseInfo(target.akUid, credential.cred, credential.token)
-  } catch (error) {
-    throw toSklandImportError(error, 'arknights', 'fetch', '森空岛干员数据读取失败')
-  }
+  const [warehouse, details] = await Promise.all([
+    getWarehouseInfo(target.akUid, credential.cred, credential.token).catch((error: unknown) => {
+      throw toSklandImportError(error, 'arknights', 'fetch', '森空岛干员数据读取失败')
+    }),
+    getPlayerDetails(target.akUid, credential).catch(() => undefined),
+  ])
 
   if (!warehouse.operators.length) {
     const empty: SklandImportError = {
@@ -102,12 +102,17 @@ export async function importAkData(
         nickName: target.nickname,
       },
       operators: warehouse.operators,
+      ...details,
     })
     const { createdCount, updatedCount, unchangedCount } = saved.data
+    const skipped = []
+    if (!details?.skins) skipped.push('皮肤')
+    if (!details?.playerData) skipped.push('角色快照')
+    const note = skipped.length ? `。本次跳过${skipped.join('和')}` : '，已同步皮肤和角色快照'
     return {
       game: 'arknights',
       ok: true,
-      summary: `已上传 ${warehouse.operators.length} 名干员（新增 ${createdCount}、更新 ${updatedCount}、未变化 ${unchangedCount}）`,
+      summary: `已上传 ${warehouse.operators.length} 名干员（新增 ${createdCount}、更新 ${updatedCount}、未变化 ${unchangedCount}）${note}`,
     }
   } catch (error) {
     throw toSklandImportError(error, 'arknights', 'upload', '干员数据上传失败')

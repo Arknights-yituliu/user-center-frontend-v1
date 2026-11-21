@@ -1,5 +1,6 @@
 import { getOperatorEntry, loadOperatorStaticData, type OperatorStaticData } from './operator-table'
 import { requestSkland, type SklandCredential } from '../api/skland-core'
+import type { AkOperatorSaveParams, AkSkinSaveItem } from '../api/user-center/ak-account-api'
 
 /**
  * 森空岛（Skland）数据工具类
@@ -15,6 +16,63 @@ export type { SklandCredential }
 
 /** 培养数据（仓库物品 + 干员）接口路径 */
 const CULTIVATE_PLAYER_API = '/api/v1/game/cultivate/player'
+const PLAYER_INFO_API = '/api/v1/game/player/info'
+const PLAYER_DATA_MAX_LENGTH = 2_000_000
+const SNAPSHOT_FIELDS = [
+  'status', 'medal', 'activity', 'rogue', 'sandbox', 'campaign', 'tower', 'bossRush',
+  'building', 'assistChars', 'recruit', 'routine',
+] as const
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** 后端按全量集合对齐。遇到无法识别的记录时跳过整组，避免误删已有皮肤。 */
+function normalizeSkins(raw: unknown): AkSkinSaveItem[] | undefined {
+  if (!Array.isArray(raw) && !isRecord(raw)) return
+  const skins = new Map<string, AkSkinSaveItem>()
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!isRecord(entry)) return
+    const id = entry.id ?? entry.skinId ?? (Array.isArray(raw) ? undefined : key)
+    const skinId = typeof id === 'string' ? id.trim() : ''
+    if (!/^[\x21-\x7e]{1,128}$/.test(skinId)) return
+    if (skins.has(skinId)) continue
+    const ts = entry.ts ?? entry.gainTs
+    const seconds = typeof ts === 'number' || typeof ts === 'string' ? Math.floor(Number(ts)) : 0
+    const gainTs = seconds > 0 && seconds <= 2_147_483_647 ? seconds : 0
+    skins.set(skinId, { skinId, gainTs })
+  }
+  if (skins.size) return Array.from(skins.values())
+}
+
+function serializePlayerSnapshot(data: Record<string, unknown>): string | undefined {
+  const snapshot: Record<string, unknown> = {}
+  for (const field of SNAPSHOT_FIELDS) {
+    if (data[field] != null) snapshot[field] = data[field]
+  }
+  if (!Object.keys(snapshot).length) return
+  if (data.currentTs != null) snapshot.currentTs = data.currentTs
+  try {
+    const json = JSON.stringify(snapshot)
+    return json.length <= PLAYER_DATA_MAX_LENGTH ? json : undefined
+  } catch {
+    // 嵌套过深的快照可能无法序列化，皮肤仍可独立同步。
+    return undefined
+  }
+}
+
+/** 复用同一次详情响应构造保存接口的两个可选字段。 */
+export async function getPlayerDetails(
+  akUid: string,
+  credential: SklandCredential,
+): Promise<Pick<AkOperatorSaveParams, 'skins' | 'playerData'>> {
+  const params = new URLSearchParams({ uid: akUid }).toString()
+  const data = await requestSkland<unknown>(PLAYER_INFO_API, params, credential)
+  if (!isRecord(data)) return {}
+  const skins = normalizeSkins(data.skins)
+  const playerData = serializePlayerSnapshot(data)
+  return { ...(skins && { skins }), ...(playerData && { playerData }) }
+}
 
 /** 仓库物品项 */
 export interface SklandWarehouseItem {
@@ -172,7 +230,7 @@ export async function getWarehouseInfo(
   cred: string,
   token: string,
 ): Promise<SklandWarehouseResult> {
-  const params = `uid=${akUid}`
+  const params = new URLSearchParams({ uid: akUid }).toString()
   const [payload, staticData] = await Promise.all([
     requestSkland<SklandCultivatePayload>(CULTIVATE_PLAYER_API, params, { cred, token }),
     loadOperatorStaticData(),
